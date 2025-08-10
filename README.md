@@ -230,7 +230,7 @@ Frontend (Streamlit/React) -> Backend API (FastAPI) -> Orchestrator (LangGraph) 
 ```mermaid
 flowchart LR
    A[Frontend] -->|REST/WS| B[API Backend]
-   B --> C[Orchestrator (LangGraph) - non-LLM]
+   C["Orchestrator (LangGraph) - non-LLM"]
    C --> D1[ResumeAnalysis (Pro)]
    C --> D2[JobDescAnalysis (Pro)]
    C --> D3[QuestionRetrieval (RAG+Flash)]
