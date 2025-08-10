@@ -211,6 +211,7 @@ Use the following section as a consistent context when interacting with AI assis
 
 Build a cloud-hosted mock-interview platform that uses a LangGraph orchestrator to coordinate 9 LLM agents (parsing, retrieval, evaluation, feedback, personalization, report generation) and one deterministic Orchestrator that routes, slices the canonical session state for each agent, parallelizes evaluation, enforces quotas, and persists snapshots. Use ChromaDB for RAG, Redis for session/cache/locks, Azure Blob for media, and Azure SQL/Cosmos for persistent metadata. Prioritize near-instant UX with Flash for speed-critical paths and Pro for accuracy-critical evaluation and final synthesis. Include an admin dashboard and rubric management in Phase 1 so HITL flows work out of the box.
 
+
 ### Top-Level Component Map
 
 **Text:**
@@ -222,24 +223,24 @@ Frontend (Streamlit/React) -> Backend API (FastAPI) -> Orchestrator (LangGraph) 
 ```mermaid
 flowchart LR
    A[Frontend] -->|REST/WS| B[API Backend]
-   B --> C[Orchestrator (LangGraph) - non-LLM]
-   C --> D1[ResumeAnalysis (Pro)]
-   C --> D2[JobDescAnalysis (Pro)]
-   C --> D3[QuestionRetrieval (RAG+Flash)]
-   C --> D4[QuestionPresenter (non-LLM)]
-   C --> D5[STT/TTS Service (external)]
-   C --> E1[FastEval (Flash)]
-   C --> E2[RubricEval (Pro)]
-   E1 --> F[EvaluatorSynthesizer (non-LLM)]
+   B --> C["Orchestrator (LangGraph) - non-LLM"]
+   C --> D1["ResumeAnalysis (Pro)"]
+   C --> D2["JobDescAnalysis (Pro)"]
+   C --> D3["QuestionRetrieval (RAG+Flash)"]
+   C --> D4["QuestionPresenter (non-LLM)"]
+   C --> D5["STT/TTS Service (external)"]
+   C --> E1["FastEval (Flash)"]
+   C --> E2["RubricEval (Pro)"]
+   E1 --> F["EvaluatorSynthesizer (non-LLM)"]
    E2 --> F
-   F --> G[FeedbackGen (Pro)]
-   F --> H[FollowUp (Flash)]
-   F --> I[Personalization (Pro)]
-   F --> J[ReportGen (Pro)]
+   F --> G["FeedbackGen (Pro)"]
+   F --> H["FollowUp (Flash)"]
+   F --> I["Personalization (Pro)"]
+   F --> J["ReportGen (Pro)"]
    C --> K[ChromaDB]
    C --> L[Redis]
-   C --> M[Persistent DB (Azure SQL/Cosmos)]
-   B --> N[Admin Dashboard (manage rubrics & HITL)]
+   C --> M["Persistent DB (Azure SQL/Cosmos)"]
+   B --> N["Admin Dashboard (manage rubrics & HITL)"]
 ```
 
 ### Clear Separation: LLM Agents vs. Non-LLM Orchestrator
