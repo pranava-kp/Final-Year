@@ -246,7 +246,7 @@ flowchart LR
    F --> J["ReportGen (Pro)"]
    C --> K[ChromaDB]
    C --> L[Redis]
-   C --> M[Persistent DB (Azure SQL/Cosmos)]
+   C --> M["Persistent DB (Azure SQL/Cosmos)"]
    B --> N["Admin Dashboard (manage rubrics & HITL)"]
 ```
 
