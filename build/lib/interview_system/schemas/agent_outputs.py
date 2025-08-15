@@ -31,8 +31,7 @@ class JobDescriptionAnalysisOutput(BaseModel):
     seniority: str | None = Field(
         None, description="Inferred seniority level, e.g., 'Junior', 'Senior'."
     )
-    # CORRECTED: Field name changed to 'keywords' to match the LLM's output
-    keywords: list[str] = Field(
+    must_have_keywords: list[str] = Field(
         ..., description="List of must-have keywords or technologies."
     )
 
@@ -145,3 +144,5 @@ class ReportGenOutput(BaseModel):
     top_3_improvements: list[str] = Field(
         ..., description="A list of the top three areas for improvement."
     )
+# Add this line to the very bottom of agent_outputs.py
+print("Python sees the following names in this file:", globals().keys())

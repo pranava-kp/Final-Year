@@ -40,6 +40,7 @@ src/interview_system/models/session.py
 src/interview_system/models/user.py
 src/interview_system/orchestration/__init__.py
 src/interview_system/orchestration/graph.py
+src/interview_system/orchestration/nodes.py
 src/interview_system/orchestration/state.py
 src/interview_system/prompts/__init__.py
 src/interview_system/rag/__init__.py
@@ -56,3 +57,5 @@ src/interview_system/services/__init__.py
 src/interview_system/services/cache.py
 src/interview_system/services/llm_clients.py
 src/interview_system/services/vector_store.py
+src/interview_system/src/interview_system/agents/job_description_analyzer.py
+src/src/interview_system/agents/job_description_analyzer.py
