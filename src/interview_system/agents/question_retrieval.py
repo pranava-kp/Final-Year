@@ -27,7 +27,7 @@ def _build_query_from_signals(
         terms.extend([s.name for s in resume_analysis.skills])
     if job_analysis:
         terms.extend(job_analysis.required_skills)
-        terms.extend(job_analysis.must_have_keywords)
+        terms.extend(job_analysis.keywords)
     if last_topics:
         terms.extend(last_topics)
     # Deduplicate while preserving order
@@ -98,7 +98,7 @@ def retrieve_question(
         "domain": domain,
         "difficulty": difficulty_hint or 5,
         "resume_topics": resume_analysis.topics if resume_analysis else [],
-        "job_keywords": job_analysis.must_have_keywords if job_analysis else [],
+        "job_keywords": job_analysis.keywords if job_analysis else [],
         "last_topics": last_topics or [],
     }
 

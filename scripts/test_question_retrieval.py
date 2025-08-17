@@ -76,7 +76,7 @@ def make_resume_and_job() -> tuple[ResumeAnalysisOutput, JobDescriptionAnalysisO
     job = JobDescriptionAnalysisOutput(
         required_skills=["Python", "System Design"],
         seniority="Senior",
-        must_have_keywords=["Scalability", "Reliability"],
+        keywords=["Scalability", "Reliability"],
     )
     return resume, job
 
