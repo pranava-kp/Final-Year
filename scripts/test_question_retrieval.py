@@ -1,16 +1,9 @@
-"""
-Quick manual test for the Question Retrieval Agent.
-
-What it does:
-- Loads env (expects GOOGLE_API_KEY in .env)
-- Seeds a few example questions into the local ChromaDB collection
-- Calls retrieve_question() once for a retrievable domain and once for a domain
-  that should trigger LLM fallback
-"""
+# test_question_retrieval.py
 
 import os
 import sys
 import pathlib
+import time
 
 from dotenv import load_dotenv
 
@@ -32,6 +25,13 @@ from interview_system.services.vector_store import get_vector_store
 
 def seed_example_questions() -> None:
     store = get_vector_store()
+    # Check if the index is empty to avoid re-seeding every time
+    stats = store.index.describe_index_stats()
+    if stats['total_vector_count'] > 0:
+        print("Index already contains vectors. Skipping seeding.")
+        return
+
+    print("Seeding example questions into Pinecone...")
     items = [
         {
             "id": "q-tech-sysdesign-1",
@@ -59,6 +59,10 @@ def seed_example_questions() -> None:
         },
     ]
     store.upsert_questions(items)
+    # Pinecone indexing can take a few moments. A short delay helps ensure
+    # the vectors are queryable in a script that runs immediately.
+    print("Waiting for 10 seconds for the index to update...")
+    time.sleep(10)
 
 
 def make_resume_and_job() -> tuple[ResumeAnalysisOutput, JobDescriptionAnalysisOutput]:
@@ -84,16 +88,16 @@ def make_resume_and_job() -> tuple[ResumeAnalysisOutput, JobDescriptionAnalysisO
 def main() -> None:
     load_dotenv()
 
-    if not os.getenv("GOOGLE_API_KEY"):
-        print("Error: GOOGLE_API_KEY not found in .env file.")
+    if not all(os.getenv(k) for k in ["GOOGLE_API_KEY", "PINECONE_API_KEY", "PINECONE_ENVIRONMENT"]):
+        print("Error: GOOGLE_API_KEY, PINECONE_API_KEY, and PINECONE_ENVIRONMENT must be set in .env file.")
         return
 
-    print("--- Seeding example questions into ChromaDB ---")
+    print("--- Initializing vector store and seeding questions ---")
     seed_example_questions()
 
     resume, job = make_resume_and_job()
 
-    print("\n--- Retrieval Test: technical domain (should hit DB) ---")
+    print("\n--- Retrieval Test: technical domain (should hit Pinecone) ---")
     try:
         out = retrieve_question(
             domain="technical",
@@ -126,5 +130,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
