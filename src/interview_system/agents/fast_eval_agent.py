@@ -1,7 +1,6 @@
-# src/interview_system/agents/fast_eval_agent.py
-
 import json
 import logging
+
 from jinja2 import Environment, FileSystemLoader
 
 from interview_system.schemas.agent_outputs import FastEvalOutput
@@ -46,24 +45,23 @@ def fast_eval_answer(
         logger.info("FastEvalAgent invocation complete.")
 
         # 5. Clean and parse the JSON response
-        # The response.content should be a JSON string.
-        # It might be wrapped in markdown, so we clean it first.
-        clean_content = (
-            response.content.strip().replace("```json", "").replace("```", "").strip()
-        )
-        response_data = json.loads(clean_content)
+        try:
+            # --- ROBUST JSON PARSING ---
+            json_start = response.content.find("{")
+            json_end = response.content.rfind("}") + 1
+            if json_start == -1 or json_end == 0:
+                raise ValueError("No JSON object found in the LLM response.")
+
+            json_string = response.content[json_start:json_end]
+            response_data = json.loads(json_string)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Failed to decode LLM response as JSON. Raw content: {response.content}"
+            ) from e
 
         # 6. Validate the data against the Pydantic schema and return
         return FastEvalOutput(**response_data)
 
-    except json.JSONDecodeError as e:
-        logger.error(
-            "Failed to decode LLM response as JSON. Raw content: %s", response.content
-        )
-        # In a real app, you might return a default error object or retry
-        raise ValueError(
-            f"Failed to decode LLM response as JSON. Raw content: {response.content}"
-        ) from e
     except Exception as e:
         logger.error("An unexpected error occurred in FastEvalAgent: %s", e)
         raise

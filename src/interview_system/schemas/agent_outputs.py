@@ -3,6 +3,19 @@
 from pydantic import BaseModel, Field
 
 
+class ConversationalQuestionOutput(BaseModel):
+    """
+    The final output from the question retrieval and presentation flow.
+    """
+
+    conversational_text: str = Field(
+        ..., description="The natural, conversational text to be shown to the user."
+    )
+    raw_question: "QuestionRetrievalOutput" = Field(
+        ..., description="The raw, structured data of the question that was asked."
+    )
+
+
 # --- ResumeAnalysisAgent ---
 class Skill(BaseModel):
     name: str = Field(

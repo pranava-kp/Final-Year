@@ -32,28 +32,21 @@ def analyze_resume(resume_text: str) -> ResumeAnalysisOutput:
 
     # 5. Parse the JSON response from the model
     try:
-        # The response.content should be a JSON string.
-        # It might be wrapped in markdown, so we clean it first.
-        clean_content = response.content.strip().replace("```json", "").replace("```", "").strip()
-        response_data = json.loads(clean_content)
-    except json.JSONDecodeError:
+        # --- ROBUST JSON PARSING ---
+        # Find the start and end of the JSON object in the response
+        json_start = response.content.find("{")
+        json_end = response.content.rfind("}") + 1
+        if json_start == -1 or json_end == 0:
+            raise ValueError("No JSON object found in the LLM response.")
+
+        json_string = response.content[json_start:json_end]
+        response_data = json.loads(json_string)
+        
+    except json.JSONDecodeError as e:
         # Add the raw content to the error for better debugging
-        raise ValueError(f"Failed to decode LLM response as JSON. Raw content: {response.content}")
+        raise ValueError(
+            f"Failed to decode LLM response as JSON. Raw content: {response.content}"
+        ) from e
 
     # 6. Validate the data against our Pydantic schema and return
     return ResumeAnalysisOutput(**response_data)
-if __name__ == "__main__":
-    sample_resume = """
-    John Doe
-    Backend Engineer
-    Experience: 5 years of experience in Python and Java. Proficient in Django, Flask, and Spring Boot.
-    Projects:
-    1. E-commerce Platform: Designed and implemented a microservices-based e-commerce platform using Python and Django.
-    2. Data Processing Pipeline: Built a distributed data processing pipeline with Apache Kafka.
-    """
-    try:
-        analysis = analyze_resume(sample_resume)
-        print("Analysis successful!")
-        print(analysis.model_dump_json(indent=2))
-    except Exception as e:
-        print(f"An error occurred: {e}")
