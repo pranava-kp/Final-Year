@@ -15,32 +15,52 @@ from interview_system.services.vector_store import get_vector_store
 # We will add a function here later to send generated questions to a review queue
 # from ..repositories.review_queue_repository import ReviewQueueRepository
 
-FALLBACK_MIN_RELEVANCE = 0.75
+FALLBACK_MIN_RELEVANCE = 0.35
 
 
-def _build_query_from_signals(
+def _transform_query(keywords: list[str]) -> str:
+    """
+    Uses a fast LLM to transform a list of keywords into a semantically rich,
+    natural-language search query.
+    """
+    print(f"--- Transforming keywords: {keywords} ---")
+    env = Environment(loader=FileSystemLoader("src/interview_system/prompts/"))
+    template = env.get_template("query_transformer.j2")
+    prompt = template.render(keywords=keywords)
+
+    llm = get_llm(model_type="flash")
+    response = llm.invoke(prompt)
+    
+    # Clean the response to get just the query text
+    transformed_query = response.content.strip().replace('"', '')
+    print(f"--- Transformed Query: {transformed_query} ---")
+    return transformed_query
+
+
+def _build_keyword_list(
     domain: str,
     resume_analysis: Optional[ResumeAnalysisOutput] = None,
     job_analysis: Optional[JobDescriptionAnalysisOutput] = None,
     last_topics: Optional[List[str]] = None,
-) -> str:
+) -> list[str]:
+    """Builds a deduplicated list of keywords from various signals."""
     terms: List[str] = [domain]
     if resume_analysis:
         terms.extend(resume_analysis.topics)
         terms.extend([s.name for s in resume_analysis.skills])
     if job_analysis:
         terms.extend(job_analysis.required_skills)
-        terms.extend(job_analysis.keywords)  # Corrected field name
+        terms.extend(job_analysis.keywords)
     if last_topics:
         terms.extend(last_topics)
-
+    
     seen: set[str] = set()
     unique_terms: List[str] = []
     for t in terms:
         if t and t.lower() not in seen:
             unique_terms.append(t)
             seen.add(t.lower())
-    return ", ".join(unique_terms)
+    return unique_terms
 
 
 def _make_question_conversational(
@@ -82,12 +102,12 @@ def _generate_and_present_fallback_question(
     response = llm.invoke(prompt)
 
     try:
-        clean = (
-            response.content.strip().replace("```json", "").replace("```", "").strip()
-        )
-        data = json.loads(clean)
+        # Use our robust JSON parsing logic
+        start_index = response.content.find('{')
+        end_index = response.content.rfind('}') + 1
+        json_str = response.content[start_index:end_index]
+        data = json.loads(json_str)
 
-        # Create the raw question object for the HITL system
         raw_question = QuestionRetrievalOutput(
             text=data["raw_question"]["text"],
             domain=data["raw_question"]["domain"],
@@ -119,18 +139,21 @@ def retrieve_question(
     Retrieves a question from the vector DB, making it conversational.
     Falls back to generating a new conversational question if relevance is low.
     """
-    # Re-validate the input data at the agent's boundary.
     if resume_analysis and isinstance(resume_analysis, dict):
         resume_analysis = ResumeAnalysisOutput(**resume_analysis)
     if job_analysis and isinstance(job_analysis, dict):
         job_analysis = JobDescriptionAnalysisOutput(**job_analysis)
 
-    query = _build_query_from_signals(
+    # 1. Build keyword list
+    keywords = _build_keyword_list(
         domain=domain,
         resume_analysis=resume_analysis,
         job_analysis=job_analysis,
         last_topics=last_topics,
     )
+    
+    # 2. Transform keywords into a high-quality query
+    query = _transform_query(keywords)
 
     conditions: List[Dict[str, Any]] = [{"domain": domain}]
     if difficulty_hint is not None:
@@ -145,7 +168,7 @@ def retrieve_question(
     if candidates:
         best = candidates[0]
         relevance = float(best.get("relevance_score", 0.0))
-
+        print(f"--- Best candidate relevance: {relevance} ---")
         if relevance >= min_relevance:
             meta = best.get("metadata", {}) or {}
             raw_question = QuestionRetrievalOutput(
@@ -171,9 +194,9 @@ def retrieve_question(
         last_topics=last_topics,
     )
 
-    # Here we will add the call to send the raw question to the review queue
     print("--- HITL: Sending generated question to review queue ---")
     print(json.dumps(fallback_output.raw_question.model_dump(), indent=2))
     # send_to_review_queue(fallback_output.raw_question)
 
     return fallback_output
+
