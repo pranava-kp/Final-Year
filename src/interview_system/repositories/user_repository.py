@@ -1,6 +1,7 @@
 # src/interview_system/repositories/user_repository.py
 
 from sqlalchemy.orm import Session
+from uuid import UUID
 from interview_system.models.user import User
 from interview_system.schemas.user import UserCreate
 from interview_system.auth.password_utils import hash_password
@@ -14,6 +15,12 @@ class UserRepository:
         Retrieves a user from the database by their email.
         """
         return self.db.query(User).filter(User.email == email).first()
+
+    def get_by_id(self, user_id: str | UUID) -> User | None:
+        """
+        Retrieves a user from the database by their ID.
+        """
+        return self.db.query(User).filter(User.id == user_id).first()
 
     def create(self, user_create: UserCreate) -> User:
         """
