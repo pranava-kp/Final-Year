@@ -1,7 +1,3 @@
-Of course. I have reviewed your changes and integrated them into the original document, ensuring the initial GitHub README formatting—including markdown for headers, code blocks, and lists—is fully preserved. I have also made sure not to shorten or remove any sections you wished to keep.
-
-Here is the updated document:
-
 ***
 
 # Multi-Agentic RAG Interview System
