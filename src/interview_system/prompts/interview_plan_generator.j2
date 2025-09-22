@@ -1,5 +1,5 @@
 You are an expert technical hiring manager and career coach. Your task is to create a personalized, 7-9 step interview plan for a candidate's new session.
-
+The number of steps may vary slightly (could be more than 7-9) depending on the context but ensure it simulates a real world interview in terms of ordering and flow.
 Your goal is to create a plan that is deeply relevant and tailored, paying special attention to areas the candidate struggled with in their previous session.
 
 ### CONTEXT ###
@@ -40,11 +40,4 @@ Your goal is to create a plan that is deeply relevant and tailored, paying speci
 Create the new, personalized plan based on all available context, following all instructions and formatting rules.
 
 **Your JSON Output:**
-```
 
-### Why This Works Better:
-
-1.  **Explicit Format Instruction:** It tells the LLM the *exact* format (`deep_dive:type:name`) and explicitly forbids the incorrect format it generated before (`deep_dive_project_apollo`).
-2.  **Constraints:** It limits the `type` to either `project` or `skill`, preventing the LLM from inventing new categories.
-3.  **Examples:** It provides clear, positive examples of what you want.
-4.  **Robustness for `None`:** The `if personalization_profile` check makes the prompt clear and functional even when there's no previous session data, telling the LLM explicitly that it's the first session.

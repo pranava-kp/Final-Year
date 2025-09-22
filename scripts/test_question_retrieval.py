@@ -1,9 +1,18 @@
 # scripts/test_question_retrieval.py
 
 import os
-import sys
 import pathlib
+import sys
+
 from dotenv import load_dotenv
+
+from interview_system.agents.question_retrieval import retrieve_question
+from interview_system.schemas.agent_outputs import (
+    JobDescriptionAnalysisOutput,
+    Project,
+    ResumeAnalysisOutput,
+    Skill,
+)
 
 # --- Boilerplate to set up path for imports ---
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -12,16 +21,12 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 # --- End Boilerplate ---
 
-from interview_system.agents.question_retrieval import retrieve_question
-from interview_system.schemas.agent_outputs import (
-    JobDescriptionAnalysisOutput,
-    ResumeAnalysisOutput,
-    Skill,
-    Project,
-)
+
+
 # REMOVED: get_vector_store is not needed here anymore unless you want to check stats
 
 # REMOVED: The entire seed_example_questions function has been moved to seed_database.py
+
 
 def make_resume_and_job() -> tuple[ResumeAnalysisOutput, JobDescriptionAnalysisOutput]:
     resume = ResumeAnalysisOutput(
@@ -41,6 +46,7 @@ def make_resume_and_job() -> tuple[ResumeAnalysisOutput, JobDescriptionAnalysisO
         keywords=["Scalability", "Reliability"],
     )
     return resume, job
+
 
 def main() -> None:
     load_dotenv()
@@ -64,7 +70,7 @@ def main() -> None:
             job_analysis=job,
             last_topics=["system-design"],
             top_k=5,
-            min_relevance=0.4, 
+            min_relevance=0.4,
         )
         print(out.model_dump_json(indent=2))
     except Exception as e:
@@ -84,6 +90,7 @@ def main() -> None:
         print(out_fb.model_dump_json(indent=2))
     except Exception as e:
         print("Fallback test failed:", e)
+
 
 if __name__ == "__main__":
     main()

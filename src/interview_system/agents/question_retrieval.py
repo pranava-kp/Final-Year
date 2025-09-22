@@ -124,7 +124,16 @@ def retrieve_question(
 
     # 4. Query the vector store
     store = get_vector_store()
-    candidates = store.query_similar(query_text=transformed_query, top_k=1, where=where)
+
+    # --- THIS IS THE ONLY CHANGE YOU NEED TO MAKE ---
+    # Hardcode your desired namespace directly in the query call.
+    candidates = store.query_similar(
+        query_text=transformed_query,
+        top_k=1,
+        where=where,
+        namespace="updated-namespace",  # <-- HARDCODED FIX
+    )
+    # ----------------------------------------------
 
     if candidates:
         best = candidates[0]

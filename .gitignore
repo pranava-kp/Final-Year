@@ -18,3 +18,4 @@ __pycache__/
 # Pytest cache
 .pytest_cache/
 *.db
+analysis_flaws_and_suggestions.txt

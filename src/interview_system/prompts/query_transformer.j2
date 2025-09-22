@@ -1,26 +1,32 @@
-### INSTRUCTIONS ###
-Your task is to synthesize the provided resume and job description summaries into a single, concise search query. This query will be used to find relevant interview questions from a vector database.
+### YOUR TASK ###
+You are an expert at creating search phrases for a vector database of interview questions.
+Your goal is to create a short, keyword-rich search phrase, NOT a full question.
+Do not include every single keyword, look at the primary domain and add a related subtopic based on job description and resume summary.
 
-### RULES (VERY IMPORTANT) ###
-1.  **Summarize, Do Not Invent:** Your query MUST ONLY contain keywords, skills, and concepts found directly in the provided `resume_summary` and `job_summary`.
-2.  **No Extrapolation:** DO NOT add or infer details that are not explicitly mentioned. This is the most important rule. Do not add:
-    - Seniority levels (e.g., "Senior," "Lead," "Staff").
-    - Specific years of experience (e.g., "5+ years").
-    - Technologies or skills not listed in the summaries.
-3.  **Combine Both Sources:** The query should merge the key skills from the resume with the key requirements from the job description.
-4.  **Output Format:** Respond with ONLY the generated search query text, and nothing else.
+### RULES ###
+1.  **Focus on the Domain:** The query's main topic MUST be about `{{ domain }}`.
+2.  **Use Context for Nuance:** Use the `resume_summary` and `job_summary` to add specific, relevant details. For example, if the domain is "Python" and the resume mentions "distributed systems for an intern," a good query would be "Python interview questions about concurrency in distributed systems for an intern role."
+3.  **Generate a Full Question:** Your output should be a complete, hypothetical question, not just a list of keywords. This will create a better vector for semantic search.
+4.  **Output Format:** Respond with ONLY the generated search query text.
 
-### CONTEXT ###
+### EXAMPLE ###
+**Primary Domain:** `Python`
+**Context:** Resume mentions "FastAPI" and "data analysis".
+**Your Output:** `Python FastAPI data analysis concurrency`
+
+### CONTEXT FOR YOUR TASK ###
+
+**Primary Domain:** `{{ domain }}`
 
 **Resume Summary:**
 ```json
-{{ resume_summary | tojson(indent=2) }}```
-
+{{ resume_summary | tojson(indent=2) }}
 **Job Description Summary:**
 ```json
-{{ job_summary | tojson(indent=2) }}
+{{ job_summary | tojson(indent=2) }}```
 
 ### YOUR TASK ###
-Generate a single, grounded search query based ONLY on the context above.
+Generate a single, focused search query based on the `Primary Domain` and contextualized by the summaries.
 
 **Generated Search Query:**
+### YOUR OUTPUT (SEARCH PHRASE ONLY) ###
