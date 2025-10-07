@@ -1,167 +1,177 @@
-// src/components/AdminLayout.jsx
-
-import React from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
-import { useTheme } from "../contexts/ThemeContext";
+import React, { useState } from 'react';
+import { Outlet, Link, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   ClipboardList,
   FileText,
   Users,
-  Settings,
-  Bell,
+  Menu,
   Sun,
   Moon,
   LogOut,
-} from "lucide-react";
-import { motion } from "framer-motion";
-import { useAuth } from "../contexts/AuthContext";
+  User as UserIcon
+} from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 
+// --- Reusable Sidebar Link Component (Styled for new aesthetic) ---
+const SidebarLink = ({ to, icon: Icon, text, isCollapsed }) => {
+  const location = useLocation();
+  const isActive = location.pathname === to || (to !== '/admin' && location.pathname.startsWith(to));
+
+  return (
+    <Link
+      to={to}
+      title={text}
+      className={`flex items-center p-3 rounded-full transition-colors duration-200 ${isActive
+        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold'
+        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+        }`}
+    >
+      <Icon className="w-6 h-6 shrink-0" />
+      {!isCollapsed && (
+        <motion.span
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="ml-4 whitespace-nowrap"
+        >
+          {text}
+        </motion.span>
+      )}
+    </Link>
+  );
+};
+
+
+// --- The Main Admin Layout Component ---
 const AdminLayout = () => {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { isDark, toggleTheme } = useTheme();
-  const { logout } = useAuth(); // Assuming you have an AuthContext to handle logout
+  const { logout } = useAuth();
   const location = useLocation();
 
   const getHeaderTitle = (pathname) => {
-    switch (pathname) {
-      case '/admin':
-      case '/admin/':
-        return {
-          title: 'Admin Dashboard',
-          subtitle: 'Interview System Management Center',
-        };
-      case '/admin/review-queue':
-        return {
-          title: 'Review Queue',
-          subtitle: 'Manage pending interview questions',
-        };
-      case '/admin/rubrics':
-        return {
-          title: 'Rubric Editor',
-          subtitle: 'Create and manage evaluation rubrics',
-        };
-      case '/admin/users':
-        return {
-          title: 'User Management',
-          subtitle: 'View and manage system users',
-        };
-      default:
-        return {
-          title: 'Admin Panel',
-          subtitle: 'Welcome',
-        };
-    }
+    if (pathname.startsWith('/admin/review-queue')) return { title: 'Review Queue', subtitle: 'Manage pending interview questions' };
+    if (pathname.startsWith('/admin/rubrics')) return { title: 'Rubric Editor', subtitle: 'Create and manage evaluation rubrics' };
+    if (pathname.startsWith('/admin/users')) return { title: 'User Management', subtitle: 'View and manage system users' };
+    return { title: 'Dashboard', subtitle: 'Overview of the interview system' };
   };
 
   const { title, subtitle } = getHeaderTitle(location.pathname);
 
   return (
-    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-900">
-      {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 shadow-lg border-r border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between">
-        <div>
-          <h2 className="text-xl font-extrabold tracking-tight text-slate-800 dark:text-white mb-8 flex items-center">
-            <LayoutDashboard className="w-6 h-6 mr-2 text-slate-600" />
-            Admin Panel
-          </h2>
-          <nav className="space-y-3">
-            <Link
-              to="/admin"
-              className="flex items-center px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-            >
-              <LayoutDashboard className="w-5 h-5 mr-3 text-slate-600" /> Dashboard
-            </Link>
-            <Link
-              to="/admin/review-queue"
-              className="flex items-center px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-            >
-              <ClipboardList className="w-5 h-5 mr-3 text-slate-600" /> Review Queue
-            </Link>
-            <Link
-              to="/admin/rubrics"
-              className="flex items-center px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-            >
-              <FileText className="w-5 h-5 mr-3 text-slate-600" /> Rubrics
-            </Link>
-            <Link
-              to="/admin/users"
-              className="flex items-center px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
-            >
-              <Users className="w-5 h-5 mr-3 text-slate-600" /> Users
-            </Link>
-          </nav>
-        </div>
+    <div className={`flex min-h-screen bg-white dark:bg-slate-900 ${isDark ? 'dark' : ''}`}>
 
-        {/* Settings button at the bottom */}
-        <div className="mt-auto pt-6 border-t border-slate-200 dark:border-slate-700">
+      {/* --- Sidebar --- */}
+      <motion.div
+        animate={{ width: isSidebarCollapsed ? '5.5rem' : '18rem' }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        className="relative flex flex-col h-screen p-4 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700"
+      >
+        <div className="flex items-center mb-6 pl-2 h-12">
           <button
-            onClick={() => alert('Settings will be implemented here.')} // Placeholder for settings functionality
-            className="flex items-center w-full px-3 py-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            aria-label="Toggle sidebar"
           >
-            <Settings className="w-5 h-5 mr-3 text-slate-600" /> Settings
+            <Menu className="w-6 h-6 text-slate-800 dark:text-white" />
           </button>
         </div>
-      </aside>
 
-      {/* Main Content Area with Header */}
-      <div className="flex-1 ml-0 lg:ml-64">
-        {/* Header */}
-        <header className="bg-white dark:bg-slate-800 shadow-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40">
-          <div className="px-6 py-6 flex justify-between items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-800 dark:text-white">
-                {title}
-              </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{subtitle}</p>
-            </motion.div>
+        <nav className="flex-1 space-y-2">
+          <SidebarLink to="/admin" icon={LayoutDashboard} text="Dashboard" isCollapsed={isSidebarCollapsed} />
+          <SidebarLink to="/admin/review-queue" icon={ClipboardList} text="Review Queue" isCollapsed={isSidebarCollapsed} />
+          <SidebarLink to="/admin/rubrics" icon={FileText} text="Rubrics" isCollapsed={isSidebarCollapsed} />
+          <SidebarLink to="/admin/users" icon={Users} text="Users" isCollapsed={isSidebarCollapsed} />
+        </nav>
 
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="flex items-center space-x-4"
-            >
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-slate-600 dark:text-slate-400">System Online</span>
-              </div>
-
-              {/* Theme Toggle Button */}
+        <div className="mt-auto flex flex-col items-center space-y-2">
+          <div className="mt-auto flex flex-col items-center space-y-3">
+            {/* --- Dark mode + User (side-by-side) --- */}
+            <div className="flex items-center justify-center space-x-3">
+              {/* Dark Mode Toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                className={`flex items-center justify-center transition-all duration-300 ${isSidebarCollapsed
+                  ? 'w-8 h-8 rounded-full'
+                  : 'px-3 py-2 rounded-full'
+                  } bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600`}
+                aria-label="Toggle theme"
               >
-                {isDark ? (
-                  <Sun className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-                ) : (
-                  <Moon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                <AnimatePresence>
+                  {!isSidebarCollapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      transition={{ duration: 0.25 }}
+                      className="ml-2 text-sm text-slate-700 dark:text-slate-300"
+                    >
+                      {isDark ? 'Light Mode' : 'Dark Mode'}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+
+              {/* User Icon */}
+              <div
+                className={`flex items-center justify-center transition-all duration-300 ${isSidebarCollapsed
+                  ? 'w-8 h-8 rounded-full ml-[5px]'
+                  : 'px-3 py-2 rounded-full ml-[5px]'
+                  } bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600`}
+              >
+                <UserIcon size={18} />
+                <AnimatePresence>
+                  {!isSidebarCollapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      transition={{ duration: 0.25 }}
+                      className="ml-2 text-sm text-slate-700 dark:text-slate-300"
+                    >
+                      Profile
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* --- Sign Out Button --- */}
+            <button
+              onClick={logout}
+              className={`w-full font-semibold py-2 flex items-center justify-center transition-colors rounded-full ${isDark
+                ? 'bg-slate-700 hover:bg-red-500 text-white'
+                : 'bg-red-300 hover:bg-red-500 text-white'
+                }`}
+            >
+              <LogOut className="shrink-0 w-5 h-5" />
+              <AnimatePresence>
+                {!isSidebarCollapsed && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="ml-2 text-sm overflow-hidden whitespace-nowrap"
+                  >
+                    Sign Out
+                  </motion.span>
                 )}
-              </button>
-
-              {/* Sign Out Button */}
-              <button
-                onClick={logout}
-                className={`font-semibold py-2 px-4 rounded-lg flex items-center transition-colors ${isDark
-                    ? 'bg-slate-700 hover:bg-red-500 text-white'
-                    : 'bg-red-300 hover:bg-red-500 text-white'
-                  }`}
-              >
-                <LogOut className="w-5 h-5 mr-2" />
-                Sign Out
-              </button>
-            </motion.div>
+              </AnimatePresence>
+            </button>
           </div>
-        </header>
 
-        {/* This is where the nested routes will be rendered */}
+        </div>
+      </motion.div>
+      <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
         <Outlet />
-      </div>
+      </main>
     </div>
+    // </div>
   );
 };
 

@@ -1,335 +1,205 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { rubricsApi } from '../services/adminApi';
+import { rubricsApi, handleApiError } from '../services/adminApi';
 import RubricCard from '../components/RubricCard';
 import RubricEditor from '../components/RubricEditor';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
-import {
-  ClipboardList,
-  FileText,
-  Users
-} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Search, FileText } from 'lucide-react';
 
 const RubricEditorPage = () => {
   const { isDark } = useTheme();
   const [rubrics, setRubrics] = useState([]);
-  const [filteredRubrics, setFilteredRubrics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
   const [editingRubric, setEditingRubric] = useState(null);
   const [saving, setSaving] = useState(false);
-  
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [domainFilter, setDomainFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
 
-  // Load rubrics
+  const [filters, setFilters] = useState({
+    searchTerm: '',
+    domainFilter: 'all',
+    statusFilter: 'all',
+  });
+
   const loadRubrics = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
       const data = await rubricsApi.getRubrics();
-      const rubricsArray = Array.isArray(data) ? data : data.rubrics || [];
-      setRubrics(rubricsArray);
-      setFilteredRubrics(rubricsArray);
+      setRubrics(Array.isArray(data.rubrics) ? data.rubrics : []);
     } catch (err) {
-      setError('Failed to load rubrics. Please try again.');
-      console.error('Error loading rubrics:', err);
+      setError(handleApiError(err).error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter rubrics
-  useEffect(() => {
-    let filtered = rubrics;
-
-    if (searchTerm) {
-      filtered = filtered.filter(rubric =>
-        rubric.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rubric.description.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (domainFilter !== 'all') {
-      filtered = filtered.filter(rubric => rubric.domain === domainFilter);
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(rubric => 
-        statusFilter === 'active' ? rubric.is_active : !rubric.is_active
-      );
-    }
-
-    setFilteredRubrics(filtered);
-  }, [rubrics, searchTerm, domainFilter, statusFilter]);
-
-  // Load rubrics on mount
   useEffect(() => {
     loadRubrics();
   }, []);
+  
+  // Dynamically generate the list of unique domains from the loaded rubrics
+  const availableDomains = useMemo(() => {
+      const domains = new Set(rubrics.map(r => r.domain));
+      return Array.from(domains);
+  }, [rubrics]);
 
-  // Handle create new rubric
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const filteredRubrics = useMemo(() => {
+    return rubrics.filter(rubric => {
+      const searchTermLower = filters.searchTerm.toLowerCase();
+      const nameMatch = rubric.name.toLowerCase().includes(searchTermLower);
+      const descriptionMatch = rubric.description.toLowerCase().includes(searchTermLower);
+      const domainMatch = filters.domainFilter === 'all' || rubric.domain === filters.domainFilter;
+      const statusMatch = filters.statusFilter === 'all' || (filters.statusFilter === 'active' ? rubric.is_active : !rubric.is_active);
+      return (nameMatch || descriptionMatch) && domainMatch && statusMatch;
+    });
+  }, [rubrics, filters]);
+
   const handleCreateNew = () => {
     setEditingRubric(null);
     setShowEditor(true);
   };
 
-  // Handle edit rubric
   const handleEdit = (rubric) => {
     setEditingRubric(rubric);
     setShowEditor(true);
   };
 
-  // Handle save rubric
   const handleSave = async (rubricData) => {
+    setSaving(true);
+    setError(null);
     try {
-      setSaving(true);
-      setError(null);
-
       if (editingRubric) {
-        const updated = await rubricsApi.update(editingRubric.id, rubricData);
-        setRubrics(prev => prev.map(r => r.id === editingRubric.id ? updated : r));
+        await rubricsApi.updateRubric(editingRubric.id, rubricData);
       } else {
-        const created = await rubricsApi.create(rubricData);
-        setRubrics(prev => [created, ...prev]);
+        await rubricsApi.createRubric(rubricData);
       }
-
       setShowEditor(false);
-      setEditingRubric(null);
+      await loadRubrics();
     } catch (err) {
-      setError(editingRubric ? 'Failed to update rubric.' : 'Failed to create rubric.');
-      console.error('Error saving rubric:', err);
+      setError(handleApiError(err).error);
     } finally {
       setSaving(false);
     }
   };
 
-  // Handle delete rubric
   const handleDelete = async (rubricId) => {
-    try {
-      setError(null);
-      await rubricsApi.delete(rubricId);
-      setRubrics(prev => prev.filter(r => r.id !== rubricId));
-    } catch (err) {
-      setError('Failed to delete rubric.');
-      console.error('Error deleting rubric:', err);
+    if (window.confirm('Are you sure you want to delete this rubric?')) {
+      try {
+        await rubricsApi.deleteRubric(rubricId);
+        await loadRubrics();
+      } catch (err) {
+        setError(handleApiError(err).error);
+      }
     }
   };
 
-  // Handle toggle status
-  const handleToggleStatus = async (rubricId, newStatus) => {
+  const handleToggleStatus = async (rubricId, isActive) => {
     try {
-      setError(null);
-      const updated = await rubricsApi.update(rubricId, { is_active: newStatus });
-      setRubrics(prev => prev.map(r => r.id === rubricId ? updated : r));
+      await rubricsApi.updateRubric(rubricId, { is_active: isActive });
+      await loadRubrics();
     } catch (err) {
-      setError('Failed to update rubric status.');
-      console.error('Error updating rubric status:', err);
+      setError(handleApiError(err).error);
     }
   };
-
-  // Handle cancel editor
-  const handleCancel = () => {
-    setShowEditor(false);
-    setEditingRubric(null);
-  };
-
-  const domains = [
-    { value: 'all', label: 'All Domains' },
-    { value: 'programming', label: 'Programming' },
-    { value: 'system-design', label: 'System Design' },
-    { value: 'databases', label: 'Databases' },
-    { value: 'algorithms', label: 'Algorithms' },
-    { value: 'data-structures', label: 'Data Structures' }
-  ];
 
   if (showEditor) {
-    return <RubricEditor rubric={editingRubric} onCancel={handleCancel} onSave={handleSave} />;
+    return (
+      <RubricEditor
+        rubric={editingRubric}
+        onSave={handleSave}
+        onCancel={() => setShowEditor(false)}
+        isLoading={saving}
+        domains={availableDomains} // Pass the dynamically generated domains
+      />
+    );
   }
 
   return (
-    <div className={`${isDark ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'} min-h-screen p-6`}>
-      
-      {/* Filters */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-sm mb-6`}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <main className="p-8 max-w-7xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <div className="flex justify-between items-start mb-12">
           <div>
-            <label htmlFor="search" className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Search
-            </label>
-            <input
-              type="text"
-              id="search"
-              placeholder="Search rubrics..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                isDark 
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-              }`}
-            />
+            <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500 mb-2">
+              Evaluation Rubrics
+            </h1>
+            <p className="text-xl text-slate-600 dark:text-slate-400">
+              Create and manage evaluation criteria.
+            </p>
           </div>
-          <div>
-            <label htmlFor="domain" className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Domain
-            </label>
-            <select
-              id="domain"
-              value={domainFilter}
-              onChange={(e) => setDomainFilter(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                isDark 
-                  ? 'bg-gray-700 border-gray-600 text-white' 
-                  : 'bg-white border-gray-300 text-gray-900'
-              }`}
-            >
-              {domains.map(domain => (
-                <option key={domain.value} value={domain.value}>{domain.label}</option>
+          <button onClick={handleCreateNew} className="flex items-center gap-2 py-3 px-5 rounded-full text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 transition-colors">
+            <Plus className="w-5 h-5" />
+            Create New
+          </button>
+        </div>
+
+        <div className="mb-8 p-6 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                name="searchTerm"
+                value={filters.searchTerm}
+                onChange={handleFilterChange}
+                placeholder="Search rubrics..."
+                className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-2 border-transparent rounded-full pl-12 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+            <select name="domainFilter" value={filters.domainFilter} onChange={handleFilterChange} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-2 border-transparent rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+              <option value="all">All Domains</option>
+              {availableDomains.map(domain => (
+                <option key={domain} value={domain}>{domain.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
               ))}
             </select>
-          </div>
-          <div>
-            <label htmlFor="status" className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Status
-            </label>
-            <select
-              id="status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                isDark 
-                  ? 'bg-gray-700 border-gray-600 text-white' 
-                  : 'bg-white border-gray-300 text-gray-900'
-              }`}
-            >
-              <option value="all">All Status</option>
+            <select name="statusFilter" value={filters.statusFilter} onChange={handleFilterChange} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-2 border-transparent rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+              <option value="all">Any Status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
           </div>
         </div>
-      </div>
+        
+        {error && <ErrorMessage message={error} onRetry={loadRubrics} className="mb-6" />}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-sm`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                <ClipboardList className="w-5 h-5 text-white" />
+        {loading ? (
+          <div className="w-full flex justify-center items-center h-64">
+            <LoadingSpinner text="Loading rubrics..." />
+          </div>
+        ) : (
+          <AnimatePresence>
+            {filteredRubrics.length === 0 ? (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16 rounded-2xl bg-slate-100 dark:bg-slate-800">
+                <FileText className="w-16 h-16 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">No Rubrics Found</h3>
+                <p className="text-slate-600 dark:text-slate-400">
+                  Try adjusting your filters, or create a new rubric to get started.
+                </p>
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredRubrics.map(rubric => (
+                  <RubricCard
+                    key={rubric.id}
+                    rubric={rubric}
+                    onEdit={() => handleEdit(rubric)}
+                    onDelete={() => handleDelete(rubric.id)}
+                    onToggleStatus={() => handleToggleStatus(rubric.id, !rubric.is_active)}
+                  />
+                ))}
               </div>
-            </div>
-            <div className="ml-4">
-              <p className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {rubrics.length}
-              </p>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Total Rubrics
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-sm`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm font-bold">✓</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {rubrics.filter(r => r.is_active).length}
-              </p>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Active
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-sm`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm font-bold">○</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {rubrics.filter(r => !r.is_active).length}
-              </p>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Inactive
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-sm`}>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm font-bold">#</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {filteredRubrics.length}
-              </p>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Filtered Results
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <LoadingSpinner text="Loading rubrics..." />
-      ) : filteredRubrics.length === 0 ? (
-        <div className={`text-center py-12 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm`}>
-          <div className={`w-12 h-12 ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg flex items-center justify-center mx-auto mb-4`}>
-            <ClipboardList className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-          </div>
-          <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-            No rubrics found
-          </h3>
-          <p className={`${isDark ? 'text-gray-400' : 'text-gray-500'} mb-4`}>
-            {searchTerm || domainFilter !== 'all' || statusFilter !== 'all' 
-              ? 'Try adjusting your filters or search terms.'
-              : 'Get started by creating your first rubric.'
-            }
-          </p>
-          {(!searchTerm && domainFilter === 'all' && statusFilter === 'all') && (
-            <button
-              onClick={handleCreateNew}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-            >
-              Create New Rubric
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredRubrics.map(rubric => (
-            <RubricCard
-              key={rubric.id}
-              rubric={rubric}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onToggleStatus={handleToggleStatus}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+            )}
+          </AnimatePresence>
+        )}
+      </motion.div>
+    </main>
   );
 };
 

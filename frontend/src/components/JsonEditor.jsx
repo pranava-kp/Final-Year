@@ -1,150 +1,127 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle, AlertTriangle, Wand2 } from 'lucide-react';
 
 const JsonEditor = ({ value, onChange, placeholder = '{}', className = '' }) => {
+  const { isDark } = useTheme();
   const [jsonString, setJsonString] = useState('');
   const [error, setError] = useState(null);
   const [isValid, setIsValid] = useState(true);
+  const lineNumbersRef = useRef(null);
+  const textAreaRef = useRef(null);
 
-  // Initialize JSON string from value
   useEffect(() => {
-    if (value) {
-      try {
-        setJsonString(JSON.stringify(value, null, 2));
-        setError(null);
-        setIsValid(true);
-      } catch (err) {
-        setError('Invalid JSON object');
-        setIsValid(false);
+    try {
+      const formattedJson = value ? JSON.stringify(value, null, 2) : '';
+      if (formattedJson !== jsonString) {
+        setJsonString(formattedJson);
       }
-    } else {
-      setJsonString(placeholder);
+      setIsValid(true);
+      setError(null);
+    } catch (err) {
+      setJsonString(String(value));
+      setError('Invalid initial JSON object provided.');
+      setIsValid(false);
     }
-  }, [value, placeholder]);
+  }, [value]);
 
-  // Handle text change
   const handleChange = (e) => {
     const newValue = e.target.value;
     setJsonString(newValue);
-
-    // Validate JSON
     try {
       const parsed = JSON.parse(newValue);
-      setError(null);
       setIsValid(true);
+      setError(null);
       onChange(parsed);
     } catch (err) {
-      setError(err.message);
       setIsValid(false);
-      // Still call onChange with the string for real-time editing
-      onChange(newValue);
+      setError(err.message);
     }
   };
 
-  // Format JSON
   const formatJson = () => {
     try {
       const parsed = JSON.parse(jsonString);
       const formatted = JSON.stringify(parsed, null, 2);
       setJsonString(formatted);
-      setError(null);
       setIsValid(true);
+      setError(null);
       onChange(parsed);
     } catch (err) {
-      setError('Cannot format invalid JSON');
+      setError(`Cannot format: ${err.message}`);
     }
   };
 
-  // Minify JSON
-  const minifyJson = () => {
-    try {
-      const parsed = JSON.parse(jsonString);
-      const minified = JSON.stringify(parsed);
-      setJsonString(minified);
-      setError(null);
-      setIsValid(true);
-      onChange(parsed);
-    } catch (err) {
-      setError('Cannot minify invalid JSON');
+  const handleScroll = () => {
+    if (lineNumbersRef.current && textAreaRef.current) {
+      lineNumbersRef.current.scrollTop = textAreaRef.current.scrollTop;
     }
   };
+
+  const lineCount = jsonString.split('\n').length;
 
   return (
-    <div className={`space-y-2 ${className}`}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={formatJson}
-            className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-          >
-            Format
-          </button>
-          <button
-            type="button"
-            onClick={minifyJson}
-            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-          >
-            Minify
-          </button>
-        </div>
-        <div className="flex items-center space-x-2">
+    <div className={`w-full ${className}`}>
+      <div className="flex justify-between items-center mb-2 px-2">
+        <div className="flex items-center gap-2">
           {isValid ? (
-            <span className="text-sm text-green-600 flex items-center">
-              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              Valid JSON
+            <span className="flex items-center text-xs text-green-500">
+              <CheckCircle className="w-4 h-4 mr-1" /> Valid JSON
             </span>
           ) : (
-            <span className="text-sm text-red-600 flex items-center">
-              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              Invalid JSON
+            <span className="flex items-center text-xs text-amber-500">
+              <AlertTriangle className="w-4 h-4 mr-1" /> Invalid JSON
             </span>
           )}
         </div>
+        <button
+          onClick={formatJson}
+          disabled={!isValid || !jsonString}
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Wand2 className="w-4 h-4" /> Format
+        </button>
       </div>
 
-      {/* Editor */}
-      <div className="relative">
+      <div className="flex h-96 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden">
+        {/* Line Numbers */}
+        <div
+          ref={lineNumbersRef}
+          className="p-3 text-right text-xs text-slate-400 dark:text-slate-500 font-mono select-none bg-slate-100 dark:bg-slate-800 overflow-y-hidden"
+        >
+          {Array.from({ length: lineCount }, (_, i) => (
+            <div key={i} className="leading-relaxed h-6 pr-2">{i + 1}</div>
+          ))}
+        </div>
+        
+        {/* Text Area */}
         <textarea
+          ref={textAreaRef}
           value={jsonString}
           onChange={handleChange}
-          className={`w-full h-96 p-4 font-mono text-sm border rounded-md resize-none focus:outline-none focus:ring-2 ${
-            isValid 
-              ? 'border-gray-300 focus:ring-blue-500' 
-              : 'border-red-300 focus:ring-red-500 bg-red-50'
-          }`}
+          onScroll={handleScroll}
+          className={`flex-1 p-3 font-mono text-sm bg-transparent resize-none focus:outline-none 
+            dark:text-slate-200 text-slate-800 
+            ${!isValid ? 'text-red-500' : ''}
+          `}
           placeholder={placeholder}
           spellCheck={false}
         />
-        
-        {/* Line numbers (simple implementation) */}
-        <div className="absolute left-2 top-4 text-xs text-gray-400 font-mono pointer-events-none select-none">
-          {jsonString.split('\n').map((_, index) => (
-            <div key={index} className="leading-5">
-              {index + 1}
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
-          <strong>JSON Error:</strong> {error}
-        </div>
-      )}
-
-      {/* Help text */}
-      <div className="text-xs text-gray-500">
-        <p>
-          <strong>Tip:</strong> Use the Format button to properly indent your JSON. 
-          The editor will validate your JSON in real-time.
-        </p>
-      </div>
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mt-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-lg p-2"
+          >
+            <strong>Error:</strong> {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

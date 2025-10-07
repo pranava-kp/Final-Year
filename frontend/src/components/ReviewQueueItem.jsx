@@ -1,198 +1,140 @@
 import React, { useState } from 'react';
-import { useTheme } from '../contexts/ThemeContext'; // Import useTheme hook
+import { useTheme } from '../contexts/ThemeContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown, Check, X, Edit2, Trash2 } from 'lucide-react';
 
 const ReviewQueueItem = ({ item, onApprove, onReject, onEdit, onDelete }) => {
-  const { isDark } = useTheme(); // Access the theme state
-  const [showDetails, setShowDetails] = useState(false);
-  const [reviewNotes, setReviewNotes] = useState('');
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewAction, setReviewAction] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const { isDark } = useTheme();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const getStatusBadge = (status) => {
-    const badges = {
-      pending: isDark ? 'bg-yellow-700 text-yellow-100' : 'bg-yellow-100 text-yellow-800',
-      approved: isDark ? 'bg-green-700 text-green-100' : 'bg-green-100 text-green-800',
-      rejected: isDark ? 'bg-red-700 text-red-100' : 'bg-red-100 text-red-800'
-    };
-    return badges[status] || (isDark ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-800');
-  };
-
-  const getDifficultyBadge = (difficulty) => {
-    const badges = {
-      easy: isDark ? 'bg-green-700 text-green-100' : 'bg-green-100 text-green-800',
-      medium: isDark ? 'bg-yellow-700 text-yellow-100' : 'bg-yellow-100 text-yellow-800',
-      hard: isDark ? 'bg-red-700 text-red-100' : 'bg-red-100 text-red-800'
-    };
-    return badges[difficulty] || (isDark ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-800');
-  };
-
-  const handleReviewAction = async (action) => {
-    setLoading(true);
+  // Simplified handler that calls the prop functions directly
+  const handleAction = async (actionCallback) => {
+    setIsLoading(true);
     try {
-      if (action === 'approve') {
-        await onApprove(item.id, reviewNotes);
-      } else if (action === 'reject') {
-        await onReject(item.id, reviewNotes);
-      }
-      setShowReviewModal(false);
-      setReviewNotes('');
-      setReviewAction(null);
+      actionCallback(item.id);
     } catch (error) {
-      console.error('Review action failed:', error);
+      console.error("Failed to perform action", error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const openReviewModal = (action) => {
-    setReviewAction(action);
-    setShowReviewModal(true);
+  const getStatusPill = (status) => {
+    const styles = {
+      pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300',
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
+    };
+    return (
+      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${styles[status]}`}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
   };
 
+  const getDifficultyPill = (difficulty) => {
+    const styles = {
+      easy: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
+      medium: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300',
+      hard: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300',
+    };
+    return (
+      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${styles[difficulty]}`}>
+        {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
+      </span>
+    );
+  };
+  
+  // Updated DetailRow to accept a custom className for the value
+  const DetailRow = ({ label, value, valueClassName = '' }) => (
+      <div className="grid grid-cols-3 gap-4 py-3">
+          <dt className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</dt>
+          <dd className={`col-span-2 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap ${valueClassName}`}>{value}</dd>
+      </div>
+  )
+
+  // Format the evaluation criteria object for display
+  const formatCriteria = (criteria) => {
+    if (!criteria || typeof criteria !== 'object') return 'N/A';
+    return Object.entries(criteria)
+      .map(([key, value]) => `- ${key}:\n  ${value}`)
+      .join('\n\n');
+  };
+
+
   return (
-    <>
-      <div className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm hover:shadow-md transition-shadow`}>
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-                {item.question_text}
-              </h3>
-              <div className="flex items-center space-x-3 text-sm text-gray-600">
-                <span className={`font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Domain: {item.domain}</span>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyBadge(item.difficulty)}`}>
-                  {item.difficulty}
-                </span>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(item.status)}`}>
-                  {item.status}
-                </span>
-              </div>
-            </div>
+    <motion.div
+      layout
+      className="bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+    >
+      {/* Collapsed View */}
+      <div 
+        className="flex items-center p-4 cursor-pointer" 
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-slate-800 dark:text-white truncate">{item.question_text}</p>
+          <div className="flex items-center gap-3 mt-2">
+            {getStatusPill(item.status)}
+            {getDifficultyPill(item.difficulty)}
+            <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Domain: {item.domain}</span>
           </div>
-
-          {/* Question Details */}
-          <div className="mb-4">
-            {item.expected_answer && (
-              <div className="mb-3">
-                <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Expected Answer:</h4>
-                <p className={`text-sm ${isDark ? 'text-gray-400 bg-slate-700' : 'text-gray-600 bg-gray-50'} p-3 rounded`}>
-                  {showDetails ? item.expected_answer : `${item.expected_answer.substring(0, 150)}...`}
-                </p>
-              </div>
-            )}
-            
-            {item.evaluation_criteria && (
-              <div className="mb-3">
-                <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Evaluation Criteria:</h4>
-                <div className={`text-sm ${isDark ? 'text-gray-400 bg-slate-700' : 'text-gray-600 bg-gray-50'} p-3 rounded`}>
-                  {typeof item.evaluation_criteria === 'object' ? (
-                    <pre className="whitespace-pre-wrap text-xs">
-                      {JSON.stringify(item.evaluation_criteria, null, 2)}
-                    </pre>
-                  ) : (
-                    <p>{item.evaluation_criteria}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={() => setShowDetails(!showDetails)}
-              className={`text-sm font-medium ${isDark ? 'text-blue-400 hover:text-blue-500' : 'text-blue-600 hover:text-blue-800'}`}
-            >
-              {showDetails ? 'Show Less' : 'Show More'}
-            </button>
-          </div>
-
-          {/* Metadata */}
-          <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'} mb-4 space-y-1`}>
-            <div>Suggested by: {item.suggested_by || 'Unknown'}</div>
-            <div>Created: {new Date(item.created_at).toLocaleDateString()}</div>
-            {item.reviewed_at && (
-              <div>Reviewed: {new Date(item.reviewed_at).toLocaleDateString()}</div>
-            )}
-            {item.review_notes && (
-              <div className="mt-2">
-                <span className="font-medium">Review Notes:</span> {item.review_notes}
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          {item.status === 'pending' && (
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => openReviewModal('approve')}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => openReviewModal('reject')}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Reject
-              </button>
-              <button
-                onClick={() => onEdit(item)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(item.id)}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Delete
-              </button>
-            </div>
-          )}
         </div>
+        <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="ml-4">
+            <ChevronDown className="w-5 h-5 text-slate-500" />
+        </motion.div>
       </div>
 
-      {/* Review Modal */}
-      {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className={`${isDark ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'} rounded-lg p-6 w-full max-w-md`}>
-            <h3 className="text-lg font-semibold mb-4">
-              {reviewAction === 'approve' ? 'Approve' : 'Reject'} Question
-            </h3>
-            <p className={`mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Are you sure you want to {reviewAction} this question? You can add optional review notes below.
-            </p>
-            <textarea
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-              placeholder="Optional review notes..."
-              className={`w-full p-3 border rounded-md resize-none ${isDark ? 'bg-slate-700 border-slate-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'}`}
-              rows={3}
-            />
-            <div className="flex items-center justify-end space-x-3 mt-4">
-              <button
-                onClick={() => setShowReviewModal(false)}
-                className={`px-4 py-2 rounded-md ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleReviewAction(reviewAction)}
-                disabled={loading}
-                className={`px-4 py-2 rounded-md text-white font-medium ${
-                  reviewAction === 'approve' 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-red-600 hover:bg-red-700'
-                } disabled:opacity-50`}
-              >
-                {loading ? 'Processing...' : reviewAction === 'approve' ? 'Approve' : 'Reject'}
-              </button>
+      {/* Expanded View */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-6 pb-6 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <dl className="divide-y divide-slate-200 dark:divide-slate-700">
+                    <DetailRow 
+                      label="Expected Answer" 
+                      value={item.expected_answer}
+                      valueClassName="font-mono"
+                    />
+                    <DetailRow 
+                      label="Evaluation Criteria" 
+                      value={formatCriteria(item.evaluation_criteria)}
+                      valueClassName="font-mono"
+                    />
+                    <DetailRow label="Domain" value={item.domain} />
+                    <DetailRow label="Submitted By" value={item.suggested_by || 'N/A'} />
+                    <DetailRow label="Submission Date" value={new Date(item.created_at).toLocaleString()} />
+                </dl>
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end space-x-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    {item.status === 'pending' && (
+                        <>
+                        <button onClick={() => handleAction(onApprove)} className="flex items-center gap-2 py-2 px-4 rounded-full text-sm font-semibold text-white bg-green-500 hover:bg-green-600 transition-colors">
+                            <Check className="w-4 h-4" /> Approve
+                        </button>
+                        <button onClick={() => handleAction(onReject)} className="flex items-center gap-2 py-2 px-4 rounded-full text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">
+                            <X className="w-4 h-4" /> Reject
+                        </button>
+                        </>
+                    )}
+                    <button onClick={() => onEdit(item)} className="flex items-center gap-2 py-2 px-4 rounded-full text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
+                        <Edit2 className="w-4 h-4" /> Edit
+                    </button>
+                    <button onClick={() => handleAction(onDelete)} className="p-2 rounded-full text-slate-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/50 dark:hover:text-red-400 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
-          </div>
-        </div>
-      )}
-    </>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 

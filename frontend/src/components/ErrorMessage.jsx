@@ -1,19 +1,27 @@
+import React from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+
 const ErrorMessage = ({ message, onRetry, className = '' }) => {
+  const { isDark } = useTheme();
+
+  // Safely determine the message to display
+  const displayMessage = typeof message === 'object' && message !== null
+    ? message.message || JSON.stringify(message)
+    : message;
+
   return (
-    <div className={`bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md ${className}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-          <span>{message}</span>
-        </div>
+    <div className={`p-4 mb-4 rounded-lg flex items-start gap-4 ${isDark ? 'bg-red-900/20 text-red-400 border border-red-500/30' : 'bg-red-50 text-red-700 border border-red-200'} ${className}`} role="alert">
+      <AlertTriangle className="w-5 h-5 shrink-0" />
+      <div>
+        <span className="font-bold">An Error Occurred</span>
+        <p className="text-sm">{displayMessage}</p>
         {onRetry && (
-          <button
-            onClick={onRetry}
-            className="ml-4 text-red-800 hover:text-red-900 font-medium text-sm underline"
+          <button 
+            onClick={onRetry} 
+            className="mt-2 font-semibold underline text-sm hover:text-red-500"
           >
-            Try Again
+            Try again
           </button>
         )}
       </div>
@@ -22,4 +30,3 @@ const ErrorMessage = ({ message, onRetry, className = '' }) => {
 };
 
 export default ErrorMessage;
-

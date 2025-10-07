@@ -4,7 +4,9 @@ import './App.css';
 
 const phrases = [
   "Prepared for the interview?",
-  "Let's ace the interview!"
+  "Let's ace the interview!",
+  "Go get 'em tiger!",
+
 ];
 
 function App() {

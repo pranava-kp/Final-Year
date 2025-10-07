@@ -4,11 +4,8 @@ import ReviewQueueItem from '../components/ReviewQueueItem';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import { useTheme } from '../contexts/ThemeContext';
-import {
-  ClipboardList,
-  FileText,
-  Users,
-} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Inbox } from 'lucide-react';
 
 const ReviewQueuePage = () => {
   const { isDark } = useTheme();
@@ -17,7 +14,6 @@ const ReviewQueuePage = () => {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     status: 'all',
-    domain: 'all',
     difficulty: 'all',
     search: ''
   });
@@ -33,231 +29,120 @@ const ReviewQueuePage = () => {
     setLoading(true);
     setError(null);
     try {
-      const params = {};
-      if (filters.status !== 'all') params.status = filters.status;
-      if (filters.domain !== 'all') params.domain = filters.domain;
-      if (filters.difficulty !== 'all') params.difficulty = filters.difficulty;
-      if (filters.search) params.search = filters.search;
-
-      const data = await reviewQueueApi.getItems(params);
-      setItems(data.items || []);
-      setStats(data.stats || stats);
+        const result = await reviewQueueApi.getItems(filters);
+        setItems(result.items || []);
+        setStats(result.stats || { total: 0, pending: 0, approved: 0, rejected: 0 });
     } catch (err) {
-      const errorInfo = handleApiError(err);
-      setError(errorInfo.error);
+        setError(handleApiError(err).error);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
-  // Load items on component mount and filter changes
   useEffect(() => {
-    loadItems();
+    const debouncedLoad = setTimeout(() => {
+        loadItems();
+    }, 300);
+    return () => clearTimeout(debouncedLoad);
   }, [filters]);
-
-  // Handle approve action
-  const handleApprove = async (itemId, reviewNotes) => {
-    try {
-      await reviewQueueApi.approveItem(itemId, reviewNotes);
-      await loadItems(); // Refresh the list
-    } catch (err) {
-      const errorInfo = handleApiError(err);
-      setError(errorInfo.error);
-    }
+  
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle reject action
-  const handleReject = async (itemId, reviewNotes) => {
-    try {
-      await reviewQueueApi.rejectItem(itemId, reviewNotes);
-      await loadItems(); // Refresh the list
-    } catch (err) {
-      const errorInfo = handleApiError(err);
-      setError(errorInfo.error);
-    }
+  // Callback for when an item's status is updated in a child component
+  const handleItemUpdate = () => {
+    loadItems();
   };
 
-  // Handle edit action (placeholder for now)
-  const handleEdit = (item) => {
-    // TODO: Implement edit functionality
-    console.log('Edit item:', item);
-    alert('Edit functionality will be implemented in the next phase');
-  };
-
-  // Handle delete action
-  const handleDelete = async (itemId) => {
-    if (!confirm('Are you sure you want to delete this item?')) return;
-    
-    try {
-      await reviewQueueApi.deleteItem(itemId);
-      await loadItems(); // Refresh the list
-    } catch (err) {
-      const errorInfo = handleApiError(err);
-      setError(errorInfo.error);
-    }
-  };
-
-  // Handle filter changes
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  // Clear all filters
-  const clearFilters = () => {
-    setFilters({
-      status: 'all',
-      domain: 'all',
-      difficulty: 'all',
-      search: ''
-    });
-  };
+  const FilterSelect = ({ name, value, onChange, options, placeholder }) => (
+    <select
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-2 border-transparent rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+    >
+      <option value="all">{placeholder}</option>
+      {options.map(opt => <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>)}
+    </select>
+  );
 
   return (
-    <div className={`p-6 ${isDark ? 'dark' : ''}`}>
+    <main className="p-8 max-w-7xl mx-auto">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {/* Header */}
+        <div className="mb-12">
+          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500 mb-2">
+            Review Queue
+          </h1>
+          <p className="text-xl text-slate-600 dark:text-slate-400">
+            Approve, reject, and manage submitted questions. ({stats.pending} pending)
+          </p>
+        </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className={`p-6 rounded-2xl shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white/70 backdrop-blur-sm border-white/20'} transition-all duration-300 transform hover:-translate-y-1`}>
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-slate-500 to-slate-600 rounded-xl flex items-center justify-center mr-4">
-              <ClipboardList className="w-6 h-6 text-white" />
+        {/* Filters and Search */}
+        <div className="mb-8 p-6 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                <div className="relative md:col-span-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                        type="text"
+                        name="search"
+                        value={filters.search}
+                        onChange={handleFilterChange}
+                        placeholder="Search..."
+                        className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-2 border-transparent rounded-full pl-12 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    />
+                </div>
+                <FilterSelect name="status" value={filters.status} onChange={handleFilterChange} options={['pending', 'approved', 'rejected']} placeholder="Any Status" />
+                <FilterSelect name="difficulty" value={filters.difficulty} onChange={handleFilterChange} options={['easy', 'medium', 'hard']} placeholder="Any Difficulty" />
             </div>
-            <div>
-              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>{stats.total}</div>
-              <div className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Total Items</div>
-            </div>
-          </div>
         </div>
-        <div className={`p-6 rounded-2xl shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white/70 backdrop-blur-sm border-white/20'} transition-all duration-300 transform hover:-translate-y-1`}>
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center mr-4">
-              <ClipboardList className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <div className={`text-2xl font-bold ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>{stats.pending}</div>
-              <div className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Pending Review</div>
-            </div>
-          </div>
-        </div>
-        <div className={`p-6 rounded-2xl shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white/70 backdrop-blur-sm border-white/20'} transition-all duration-300 transform hover:-translate-y-1`}>
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
-              <FileText className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <div className={`text-2xl font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>{stats.approved}</div>
-              <div className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Approved</div>
-            </div>
-          </div>
-        </div>
-        <div className={`p-6 rounded-2xl shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white/70 backdrop-blur-sm border-white/20'} transition-all duration-300 transform hover:-translate-y-1`}>
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <div className={`text-2xl font-bold ${isDark ? 'text-red-400' : 'text-red-600'}`}>{stats.rejected}</div>
-              <div className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Rejected</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Filters */}
-      <div className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white/70 backdrop-blur-sm border-white/20'} p-6 rounded-2xl shadow-xl border mb-8`}>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-64">
-            <input
-              type="text"
-              placeholder="Search questions..."
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${isDark ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400' : 'bg-white/70 border-slate-300 text-slate-900 placeholder-slate-500 hover:bg-white/90'}`}
-            />
-          </div>
-          <select
-            value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
-            className={`px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white/70 border-slate-300 text-slate-900 hover:bg-white/90'}`}
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <select
-            value={filters.domain}
-            onChange={(e) => handleFilterChange('domain', e.target.value)}
-            className={`px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white/70 border-slate-300 text-slate-900 hover:bg-white/90'}`}
-          >
-            <option value="all">All Domains</option>
-            <option value="programming">Programming</option>
-            <option value="algorithms">Algorithms</option>
-            <option value="data-structures">Data Structures</option>
-            <option value="system-design">System Design</option>
-            <option value="databases">Databases</option>
-          </select>
-          <select
-            value={filters.difficulty}
-            onChange={(e) => handleFilterChange('difficulty', e.target.value)}
-            className={`px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white/70 border-slate-300 text-slate-900 hover:bg-white/90'}`}
-          >
-            <option value="all">All Difficulties</option>
-            <option value="easy">Easy</option>
-            <option value="medium">Medium</option>
-            <option value="hard">Hard</option>
-          </select>
-          <button
-            onClick={clearFilters}
-            className={`px-6 py-3 border rounded-xl transition-all duration-200 font-medium ${isDark ? 'text-slate-300 border-slate-600 bg-slate-700 hover:bg-slate-600' : 'text-slate-600 hover:text-slate-800 border-slate-300 bg-white/70 hover:bg-white/90'}`}
-          >
-            Clear Filters
-          </button>
-        </div>
-      </div>
+        {error && <ErrorMessage message={error} onRetry={loadItems} className="mb-6" />}
 
-      {/* Error Message */}
-      {error && (
-        <ErrorMessage
-          message={error}
-          onRetry={loadItems}
-          className="mb-6"
-        />
-      )}
-
-      {/* Loading State */}
-      {loading && (
-        <LoadingSpinner size="large" text="Loading review queue..." />
-      )}
-
-      {/* Items List */}
-      {!loading && (
-        <div className="space-y-6">
-          {items.length === 0 ? (
-            <div className={`text-center py-16 rounded-2xl shadow-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white/70 backdrop-blur-sm border-white/20'}`}>
-              <div className={`text-6xl mb-6 ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>📝</div>
-              <h3 className={`text-xl font-semibold mb-3 ${isDark ? 'text-white' : 'text-slate-800'}`}>No items found</h3>
-              <p className={`max-w-md mx-auto ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                {Object.values(filters).some(f => f !== 'all' && f !== '')
-                  ? 'Try adjusting your filters to see more results.'
-                  : 'The review queue is empty.'}
-              </p>
+        {/* Content */}
+        {loading ? (
+            <div className="w-full flex justify-center items-center h-64">
+                <LoadingSpinner text="Fetching queue items..." />
             </div>
-          ) : (
-            items.map((item) => (
-              <ReviewQueueItem
-                key={item.id}
-                item={item}
-                onApprove={handleApprove}
-                onReject={handleReject}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
-            ))
-          )}
-        </div>
-      )}
-    </div>
+        ) : (
+          <AnimatePresence>
+            {items.length === 0 ? (
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-16 rounded-2xl bg-slate-100 dark:bg-slate-800"
+                >
+                    <Inbox className="w-16 h-16 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-2">The Queue is Empty</h3>
+                    <p className="text-slate-600 dark:text-slate-400">
+                        Try adjusting your filters or check back later.
+                    </p>
+                </motion.div>
+            ) : (
+              <motion.div className="space-y-4">
+                {items.map((item) => (
+                  <ReviewQueueItem
+                    key={item.id}
+                    item={item}
+                    onApprove={handleItemUpdate}
+                    onReject={handleItemUpdate}
+                    onEdit={() => { /* Your edit logic here */ }}
+                    onDelete={handleItemUpdate}
+                  />
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+      </motion.div>
+    </main>
   );
 };
 
