@@ -75,4 +75,13 @@ button:focus-visible {
 @tailwind components;
 @tailwind utilities;
 
-
+/* Add this new utility class */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+}

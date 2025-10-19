@@ -1,27 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Code, Book, Send, Mic } from 'lucide-react';
+import { Sparkles, Send, Mic, Paperclip, X, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import GeminiSidebar from '../components/GeminiSidebar'; // Import the new sidebar
+import GeminiSidebar from '../components/GeminiSidebar';
 import { useTheme } from '../contexts/ThemeContext';
-
-const SuggestionCard = ({ title, description, icon: Icon }) => (
-  <motion.div
-    whileHover={{ y: -4 }}
-    className="relative bg-slate-100 dark:bg-slate-800 p-4 rounded-xl cursor-pointer group overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300"
-  >
-    <div className="relative z-10">
-      <Icon className="w-7 h-7 text-slate-500 dark:text-slate-400 mb-3" />
-      <h3 className="text-md font-semibold text-slate-800 dark:text-white">{title}</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400">{description}</p>
-    </div>
-  </motion.div>
-);
 
 const CandidateDashboardPage = () => {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [resumeText, setResumeText] = useState('');
+  const [resumeFile, setResumeFile] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleTextChange = (e) => {
+    setResumeText(e.target.value);
+    // If user starts typing, remove the uploaded file
+    if (resumeFile) {
+      setResumeFile(null);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setResumeFile(file);
+      // If user uploads a file, clear the text
+      setResumeText('');
+    }
+  };
+
+  const handleFileDismiss = () => {
+    setResumeFile(null);
+    // Reset file input so the same file can be re-uploaded
+    if(fileInputRef.current) {
+        fileInputRef.current.value = "";
+    }
+  };
+
+  const canSubmit = resumeText.trim() !== '' || resumeFile !== null;
 
   return (
     <div className={`flex min-h-screen ${isDark ? 'dark' : ''}`}>
@@ -46,39 +63,12 @@ const CandidateDashboardPage = () => {
                   Hello, {user?.firstName || 'Candidate'}.
                 </h1>
                 <h2 className="text-4xl font-semibold text-slate-500 dark:text-slate-400">
-                  How can I help you today?
+                  Ready to start your interview?
                 </h2>
               </motion.div>
             </div>
             
-            {/* Suggestion Cards */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }} 
-              className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-8"
-            >
-              <SuggestionCard
-                title="Start Interview"
-                description="Begin your automated interview session."
-                icon={Sparkles}
-              />
-              <SuggestionCard
-                title="Practice Coding Challenge"
-                description="Solve a sample coding problem."
-                icon={Code}
-              />
-              <SuggestionCard
-                title="Review Interview Topics"
-                description="Get a list of topics for your role."
-                icon={Book}
-              />
-              <SuggestionCard
-                title="Ask a Question"
-                description="Clarify something about the process."
-                icon={Sparkles}
-              />
-            </motion.div>
+            {/* This space is intentionally left blank to push the input to the bottom */}
 
             {/* Bottom Input Bar */}
             <div className="mt-auto w-full pt-4">
@@ -86,24 +76,67 @@ const CandidateDashboardPage = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
-                className="relative"
               >
-                <textarea
-                  rows="1"
-                  placeholder="Enter a prompt here"
-                  className="w-full pl-6 pr-24 py-4 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
-                  onInput={(e) => {
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${e.target.scrollHeight}px`;
-                  }}
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-                  <button className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors">
-                    <Mic className="w-5 h-5" />
-                  </button>
-                  <button className="p-2 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-blue-500 dark:hover:bg-blue-500 text-slate-600 dark:text-slate-300 hover:text-white transition-colors">
-                    <Send className="w-5 h-5" />
-                  </button>
+                {/* Uploaded File Preview */}
+                {resumeFile && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-3 ml-2 flex"
+                  >
+                    <div className="bg-slate-200 dark:bg-slate-700 rounded-lg p-2 flex items-center text-sm">
+                       <FileText className="w-4 h-4 mr-2 text-slate-600 dark:text-slate-300" />
+                       <span className="text-slate-800 dark:text-white font-medium">{resumeFile.name}</span>
+                       <button onClick={handleFileDismiss} className="ml-2 p-1 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600">
+                         <X className="w-4 h-4 text-slate-600 dark:text-slate-300"/>
+                       </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Main Input Area */}
+                <div className="relative">
+                  <textarea
+                    rows="1"
+                    value={resumeText}
+                    onChange={handleTextChange}
+                    disabled={!!resumeFile}
+                    placeholder={resumeFile ? "File attached. Press Start to continue." : "Paste your resume, or upload a file to begin..."}
+                    className="w-full pl-12 pr-24 py-4 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none disabled:cursor-not-allowed no-scrollbar"
+                    onInput={(e) => {
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                    }}
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center">
+                     {/* Paperclip icon for file upload, disappears when typing */}
+                    {!resumeText && (
+                        <>
+                            <input
+                                type="file"
+                                id="resume-upload"
+                                className="hidden"
+                                onChange={handleFileChange}
+                                ref={fileInputRef}
+                                accept=".pdf,.doc,.docx,.txt"
+                            />
+                            <label htmlFor="resume-upload" className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer">
+                                <Paperclip className="w-5 h-5" />
+                            </label>
+                        </>
+                    )}
+                  </div>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2">
+                    <button className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors">
+                      <Mic className="w-5 h-5" />
+                    </button>
+                    <button
+                      disabled={!canSubmit}
+                      className="p-2 rounded-full bg-blue-500 text-white transition-colors disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed"
+                    >
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
                <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-2 px-4">
