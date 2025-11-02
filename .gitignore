@@ -20,3 +20,4 @@ __pycache__/
 *.db
 analysis_flaws_and_suggestions.txt
 tempCodeRunnerFile.python
+report.html
