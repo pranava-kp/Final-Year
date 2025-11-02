@@ -7,6 +7,7 @@ import textwrap
 import asyncio
 from typing import Any
 from dotenv import load_dotenv
+load_dotenv()
 
 VERBOSE_DEBUG_LOGGING = True
 
@@ -29,7 +30,6 @@ def pretty_print_chunk(chunk: dict[str, Any]):
 
 
 async def main():
-    load_dotenv()
     if not os.getenv("GOOGLE_API_KEY") or not os.getenv("PINECONE_API_KEY"):
         print("Error: Required API keys are not set.")
         return

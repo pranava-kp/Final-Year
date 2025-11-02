@@ -1,10 +1,10 @@
 import json
-
 from jinja2 import Environment, FileSystemLoader
 
 # Corrected the import statement to use ResumeAnalysisOutput
 from interview_system.schemas.agent_outputs import ResumeAnalysisOutput
 from interview_system.services.llm_clients import get_llm
+from langchain_core.prompts import PromptTemplate
 
 
 async def analyze_resume(resume_text: str) -> ResumeAnalysisOutput:
@@ -22,31 +22,25 @@ async def analyze_resume(resume_text: str) -> ResumeAnalysisOutput:
     template = env.get_template("resume_analyzer.j2")
 
     # 2. Render the prompt with the user's resume text
-    prompt = template.render(resume_text=resume_text)
+    prompt_string = template.render(resume_text=resume_text)
+
+    # Create a PromptTemplate for the chain
+    prompt = PromptTemplate.from_template(prompt_string)
 
     # 3. Get the Gemini Pro model
     llm = get_llm(model_type="pro")
 
-    # 4. Invoke the model and get the response
-    response = await llm.ainvoke(prompt)
+    # 4. THIS IS THE FIX: Force the LLM to return
+    #    JSON matching the ResumeAnalysisOutput schema.
+    structured_llm = llm.with_structured_output(ResumeAnalysisOutput)
 
-    # 5. Parse the JSON response from the model
+    # 5. Invoke the model and get the response
+    # The 'response_data' will be a perfectly-formed ResumeAnalysisOutput object
     try:
-        # --- ROBUST JSON PARSING ---
-        # Find the start and end of the JSON object in the response
-        json_start = response.content.find("{")
-        json_end = response.content.rfind("}") + 1
-        if json_start == -1 or json_end == 0:
-            raise ValueError("No JSON object found in the LLM response.")
-
-        json_string = response.content[json_start:json_end]
-        response_data = json.loads(json_string)
-
-    except json.JSONDecodeError as e:
-        # Add the raw content to the error for better debugging
-        raise ValueError(
-            f"Failed to decode LLM response as JSON. Raw content: {response.content}"
-        ) from e
+        response_data = await structured_llm.ainvoke(prompt_string)
+    except Exception as e:
+        # This will catch errors if the LLM *still* fails to output valid JSON
+        raise ValueError(f"Failed to get structured output from LLM: {e}")
 
     # 6. Validate the data against our Pydantic schema and return
-    return ResumeAnalysisOutput(**response_data)
+    return response_data
