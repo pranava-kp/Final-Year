@@ -190,8 +190,24 @@ async def report_generator_node(state: SessionState) -> dict:
         serializable_state["question_history"] = [
             turn.model_dump(mode="json") for turn in state["question_history"]
         ]
-    report_result = await generate_report(serializable_state)
-    return {"final_report": report_result.model_dump()}
+    
+    # --- THIS IS THE FIX ---
+    try:
+        report_result = await generate_report(serializable_state)
+        
+        # Check if the agent returned a valid report
+        if report_result:
+            return {"final_report": report_result.model_dump()}
+        else:
+            # Handle cases where the agent fails silently (returns None)
+            logger.error("Report generation returned None.")
+            return {"final_report": None}
+            
+    except Exception as e:
+        # Handle cases where the agent throws an error
+        logger.error(f"Report generation node failed: {e}", exc_info=True)
+        return {"final_report": None}
+    # --- END FIX ---
 
 
 async def personalization_node(state: SessionState) -> dict:
