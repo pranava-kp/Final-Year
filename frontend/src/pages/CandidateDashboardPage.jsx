@@ -4,13 +4,15 @@ import { Send, Mic, Paperclip, X, FileText, LoaderCircle, Bot, User, Sparkles } 
 import { useAuth } from '../contexts/AuthContext';
 import GeminiSidebar from '../components/GeminiSidebar';
 import { useTheme } from '../contexts/ThemeContext';
-// NEW: We'll assume these are your new API functions
-// import { startInterviewApi, sendAnswerApi } from '../services/interviewApi';
+// --- 1. IMPORT YOUR REAL API FUNCTIONS ---
+import { startInterviewApi, sendAnswerApi, getReportApi } from '../services/interviewApi';
+// TODO: You still need your resume upload function (if you use it)
+// import { uploadResume } from '../services/sessionApi'; 
 import ErrorMessage from '../components/ErrorMessage';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-// NEW: A simple ChatBubble component
+// --- (ChatBubble component is unchanged) ---
 const ChatBubble = ({ message }) => {
   const { isDark } = useTheme();
   const isBot = message.role === 'bot';
@@ -47,16 +49,16 @@ const CandidateDashboardPage = () => {
   const { isDark } = useTheme();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
-  // === NEW STATE ===
-  const [interviewPhase, setInterviewPhase] = useState('lobby'); // 'lobby', 'chat', 'finished'
+  // === INTERVIEW STATE ===
+  const [interviewPhase, setInterviewPhase] = useState('lobby'); // 'lobby', 'chat', 'report'
   const [sessionId, setSessionId] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
-  const [currentInput, setCurrentInput] = useState(''); // For the chat box
+  const [currentInput, setCurrentInput] = useState('');
   const chatContainerRef = useRef(null);
 
   // === LOBBY STATE ===
   const [resumeText, setResumeText] = useState('');
-  const [jobDescriptionText, setJobDescriptionText] = useState(''); // NEW: For the JD
+  const [jobDescriptionText, setJobDescriptionText] = useState('');
   const [resumeFile, setResumeFile] = useState(null);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
@@ -64,20 +66,23 @@ const CandidateDashboardPage = () => {
   // === GENERAL STATE ===
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // --- 2. NEW STATE FOR THE FINAL REPORT ---
+  const [finalReport, setFinalReport] = useState(null);
 
-  // NEW: Auto-scroll chat
+
+  // Auto-scroll chat
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [chatHistory]);
 
-  // --- LOBBY FUNCTIONS ---
+  // --- (Lobby helper functions are unchanged) ---
   const handleTextChange = (e) => {
     setResumeText(e.target.value);
     if (resumeFile) setResumeFile(null);
   };
-
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -85,7 +90,6 @@ const CandidateDashboardPage = () => {
       setResumeText('');
     }
   };
-
   const handleFileDismiss = () => {
     setResumeFile(null);
     if (fileInputRef.current) {
@@ -96,7 +100,8 @@ const CandidateDashboardPage = () => {
   // --- API FUNCTIONS ---
 
   /**
-   * NEW: Step 1 - Starts the interview
+   * --- 3. UPDATED WITH REAL API CALL ---
+   * Step 1 - Starts the interview
    */
   const handleStartInterview = async () => {
     setError(null);
@@ -111,31 +116,23 @@ const CandidateDashboardPage = () => {
 
     setIsLoading(true);
     
-    // TODO: Replace with your actual API calls
-    // This is a placeholder to simulate the flow
     try {
-      // 1. If file, upload it first (You already have this logic)
       let resumeData = resumeText;
       if (hasFile) {
+        // TODO: Implement your file upload logic here if needed
+        // For now, we just simulate it as your BE accepts text
+        console.log("Simulating file upload and text extraction...");
         // const uploadResponse = await uploadResume(resumeFile, token);
-        // resumeData = uploadResponse.extracted_text; // Assuming API returns text
-        console.log("Simulating file upload...");
-        // For this example, let's just use the file name as "text"
-        resumeData = `Uploaded file: ${resumeFile.name}`;
+        // resumeData = uploadResponse.extracted_text;
+        resumeData = `Uploaded file: ${resumeFile.name}. (This is a placeholder, actual text extraction needed if you support files)`;
       }
 
-      // 2. Start the interview
-      // const response = await startInterviewApi({ resume_text: resumeData, job_description_text: jobDescriptionText }, token);
-      
-      // === SIMULATED API RESPONSE ===
-      await new Promise(res => setTimeout(res, 1500)); // Simulate network delay
-      const response = {
-        session_id: "abc-123-xyz-789",
-        first_question: {
-          conversational_text: "Welcome! Thanks for applying. To get started, could you please tell me a bit about yourself and walk me through your resume?"
-        }
-      };
-      // === END SIMULATION ===
+      // --- REAL API CALL ---
+      const response = await startInterviewApi({ 
+        resume_text: resumeData, 
+        job_description_text: jobDescriptionText 
+      }, token);
+      // --- END REAL API CALL ---
 
       setSessionId(response.session_id);
       setChatHistory([
@@ -143,7 +140,6 @@ const CandidateDashboardPage = () => {
       ]);
       setInterviewPhase('chat'); // <-- This is the magic!
       
-      // Clear lobby inputs
       setResumeText('');
       setJobDescriptionText('');
       setResumeFile(null);
@@ -156,7 +152,8 @@ const CandidateDashboardPage = () => {
   };
 
   /**
-   * NEW: Step 2 - Handles the main chat loop
+   * --- 4. UPDATED WITH REAL API CALL ---
+   * Step 2 - Handles the main chat loop
    */
   const handleSendAnswer = async () => {
     if (currentInput.trim() === '') return;
@@ -170,17 +167,12 @@ const CandidateDashboardPage = () => {
     setError(null);
 
     try {
-      // TODO: Replace with your actual API call
-      // const response = await sendAnswerApi({ session_id: sessionId, answer_text: userAnswerText }, token);
-
-      // === SIMULATED API RESPONSE ===
-      await new Promise(res => setTimeout(res, 2000));
-      const response = {
-        feedback: { improvement_points: [{ bullet: "That's a good summary. You could also mention your impact at that role." }] },
-        next_question: { conversational_text: "Great, thanks. Now, I see you worked with Python and React. Could you describe a challenging project where you used both?" },
-        is_finished: false
-      };
-      // === END SIMULATION ===
+      // --- REAL API CALL ---
+      const response = await sendAnswerApi({ 
+        session_id: sessionId, 
+        answer_text: userAnswerText 
+      }, token);
+      // --- END REAL API CALL ---
 
       const newBotMessages = [];
       // 1. Add feedback, if any
@@ -189,23 +181,46 @@ const CandidateDashboardPage = () => {
         newBotMessages.push({ role: 'feedback', content: feedbackText });
       }
 
-      // 2. Add next question or end message
+      // 2. Add next question OR fetch the report
       if (response.is_finished) {
-        newBotMessages.push({ role: 'bot', content: "That was my last question. Thank you for your time! We'll be in touch." });
-        setInterviewPhase('finished');
-        // TODO: Navigate to report page or show report here
-        // navigate(`/report/${sessionId}`);
-      } else {
-        newBotMessages.push({ role: 'bot', content: response.next_question.conversational_text });
-      }
+        newBotMessages.push({ role: 'bot', content: "That was my last question. Thank you for your time! Generating your final report..." });
+        setChatHistory([...newHistory, ...newBotMessages]);
+        
+        // --- 5. FETCH THE REPORT ---
+        await handleFetchReport(); // This will also set the phase to 'report'
 
-      setChatHistory([...newHistory, ...newBotMessages]);
+      } else {
+        if (response.next_question) {
+          newBotMessages.push({ role: 'bot', content: response.next_question.conversational_text });
+        } else {
+          // Fallback in case is_finished is false but next_question is null
+          newBotMessages.push({ role: 'bot', content: "Please wait a moment..." });
+        }
+        setChatHistory([...newHistory, ...newBotMessages]);
+      }
 
     } catch (err) {
       setError(err.detail || "An unexpected error occurred. Please try again.");
-      // If API fails, let user try sending again
       setChatHistory(chatHistory); // Revert history
       setCurrentInput(userAnswerText); // Put text back in box
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * --- 6. NEW FUNCTION TO FETCH AND DISPLAY THE REPORT ---
+   */
+  const handleFetchReport = async () => {
+    setIsLoading(true); // Keep spinner active
+    try {
+      const reportData = await getReportApi(sessionId, token);
+      setFinalReport(reportData.final_report); // Save the report
+      setInterviewPhase('report'); // Change the UI to show the report
+    } catch (err) {
+      setError(err.detail || "Could not fetch your report.");
+      // Even if report fails, keep the phase as 'report' to show the error
+      setInterviewPhase('report'); 
     } finally {
       setIsLoading(false);
     }
@@ -222,9 +237,8 @@ const CandidateDashboardPage = () => {
 
   // Determine button state
   const canSubmitLobby = (resumeText.trim() !== '' || resumeFile !== null) && jobDescriptionText.trim() !== '' && !isLoading && !isAuthLoading;
-  const canSubmitChat = currentInput.trim() !== '' && !isLoading && !isAuthLoading && interviewPhase !== 'finished';
+  const canSubmitChat = currentInput.trim() !== '' && !isLoading && !isAuthLoading && interviewPhase === 'chat';
   
-  // NEW: Determine which submit handler to use
   const activeSubmitHandler = interviewPhase === 'lobby' ? handleStartInterview : handleSendAnswer;
   const canSubmit = interviewPhase === 'lobby' ? canSubmitLobby : canSubmitChat;
 
@@ -237,9 +251,10 @@ const CandidateDashboardPage = () => {
       <main className="flex-1 flex flex-col bg-white dark:bg-slate-900 transition-colors duration-300">
         <div className="flex-1 flex flex-col items-center w-full px-4 pb-4 overflow-y-auto">
           
-          {/* NEW: Conditional UI based on phase */}
-          {interviewPhase === 'lobby' ? (
-            // --- LOBBY UI ---
+          {/* --- 7. UPDATED CONDITIONAL UI --- */}
+          
+          {/* --- LOBBY UI --- */}
+          {interviewPhase === 'lobby' && (
             <div className="w-full max-w-4xl mx-auto flex flex-col justify-between h-full">
               <div className="pt-16">
                 <motion.div
@@ -256,8 +271,10 @@ const CandidateDashboardPage = () => {
                 </motion.div>
               </div>
             </div>
-          ) : (
-            // --- CHAT UI ---
+          )}
+
+          {/* --- CHAT UI --- */}
+          {interviewPhase === 'chat' && (
             <div
               ref={chatContainerRef}
               className="w-full max-w-4xl mx-auto flex-1 overflow-y-auto pt-16 space-y-2 no-scrollbar"
@@ -265,7 +282,7 @@ const CandidateDashboardPage = () => {
               {chatHistory.map((msg, index) => (
                 <ChatBubble key={index} message={msg} />
               ))}
-              {isLoading && interviewPhase === 'chat' && (
+              {isLoading && (
                 <div className="flex justify-start">
                   <div className="p-3 rounded-2xl max-w-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-bl-none">
                     <LoaderCircle className="w-5 h-5 animate-spin text-slate-500 dark:text-slate-400" />
@@ -274,6 +291,42 @@ const CandidateDashboardPage = () => {
               )}
             </div>
           )}
+          
+          {/* --- 8. NEW REPORT UI --- */}
+          {interviewPhase === 'report' && (
+            <div className="w-full max-w-4xl mx-auto flex-1 overflow-y-auto pt-16 space-y-4">
+              <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6 }}
+                >
+                <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-200 mb-4">
+                  Your Interview Report
+                </h1>
+                <p className="text-lg text-slate-600 dark:text-slate-400 mb-6">
+                  Here is a breakdown of your performance.
+                </p>
+              </motion.div>
+              {isLoading ? (
+                <LoadingSpinner text="Generating report..." />
+              ) : finalReport ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-slate-50 dark:bg-slate-800 p-6 rounded-lg shadow-md"
+                >
+                  {/* A simple way to display the report. You can make this much prettier. */}
+                  <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">
+                    {JSON.stringify(finalReport, null, 2)}
+                  </pre>
+                </motion.div>
+              ) : (
+                // This will show if `finalReport` is null and not loading (i.e., an error)
+                <p className="text-red-500">{error || "Could not load report."}</p>
+              )}
+            </div>
+          )}
+
 
           {/* --- BOTTOM INPUT BAR (Changes based on phase) --- */}
           <div className="mt-auto w-full pt-4 max-w-4xl mx-auto">
@@ -283,7 +336,7 @@ const CandidateDashboardPage = () => {
               transition={{ duration: 0.5, delay: 0.4 }}
               className="w-full"
             >
-              {error && <ErrorMessage message={error} onRetry={activeSubmitHandler} />}
+              {error && interviewPhase !== 'report' && <ErrorMessage message={error} onRetry={activeSubmitHandler} />}
               
               {/* --- LOBBY INPUTS --- */}
               {interviewPhase === 'lobby' && (
@@ -314,7 +367,7 @@ const CandidateDashboardPage = () => {
                       className="w-full pl-12 pr-12 py-4 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none disabled:cursor-not-allowed max-h-36 overflow-y-auto"
                       onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; }}
                     />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center">
+                    <div className="absolute left-3 top-12 -translate-y-1/2 flex items-center">
                       {!resumeText && !isLoading && (
                           <>
                               <input
@@ -329,7 +382,7 @@ const CandidateDashboardPage = () => {
                       )}
                     </div>
                   </div>
-                  {/* NEW: Job Description Text Area */}
+                  {/* Job Description Text Area */}
                   <div className="relative">
                     <textarea
                       rows="1"
@@ -358,14 +411,14 @@ const CandidateDashboardPage = () => {
               )}
 
               {/* --- CHAT INPUT --- */}
-              {interviewPhase !== 'lobby' && (
+              {interviewPhase === 'chat' && (
                 <div className="relative">
                   <textarea
                     rows="1"
                     value={currentInput}
                     onChange={(e) => setCurrentInput(e.target.value)}
-                    disabled={isLoading || isAuthLoading || interviewPhase === 'finished'}
-                    placeholder={interviewPhase === 'finished' ? "Interview complete. Thank you." : "Type your answer..."}
+                    disabled={isLoading || isAuthLoading}
+                    placeholder={"Type your answer..."}
                     className="w-full pl-12 pr-24 py-4 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none disabled:cursor-not-allowed max-h-36 overflow-y-auto"
                     onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; }}
                     onKeyDown={(e) => {
@@ -377,7 +430,7 @@ const CandidateDashboardPage = () => {
                   />
                   {/* --- CHAT SUBMIT BUTTON --- */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-                    <button className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors" disabled={isLoading || isAuthLoading || interviewPhase === 'finished'}>
+                    <button className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors" disabled={isLoading || isAuthLoading}>
                       <Mic className="w-5 h-5" />
                     </button>
                     <button
@@ -391,10 +444,12 @@ const CandidateDashboardPage = () => {
                 </div>
               )}
 
-              {/* Footer text */}
-              <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-2 px-4">
-                This is an AI-powered interview system. Your responses will be recorded and analyzed.
-              </p>
+              {/* --- 9. HIDE FOOTER ON REPORT PAGE --- */}
+              {interviewPhase !== 'report' && (
+                <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-2 px-4">
+                  This is an AI-powered interview system. Your responses will be recorded and analyzed.
+                </p>
+              )}
             </motion.div>
           </div>
         </div>

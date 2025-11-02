@@ -1,10 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-
 from dotenv import load_dotenv
 load_dotenv()
-
 # Import routers from the application
 from interview_system.auth import router as auth_router
 from interview_system.api.routers import interview as interview_router
@@ -50,15 +48,10 @@ def startup_event():
     configure_cloudinary() # Initialize the Cloudinary SDK
 
 # --- Include API Routers ---
-#
-# --- UPDATED SECTION ---
-# Reverted to the old style (like main_old.py)
-# by removing the `prefix="/api"` from all routers.
-#
 app.include_router(auth_router.router)
 app.include_router(interview_router.router)
 app.include_router(admin_router.router)
-app.include_router(session_router.router) 
+app.include_router(session_router.router) # Add the new session router
 
 @app.get("/", tags=["Root"])
 def read_root():

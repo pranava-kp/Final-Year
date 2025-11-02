@@ -5,6 +5,8 @@ from jinja2 import Environment, FileSystemLoader
 from interview_system.orchestration.state import SessionState
 from interview_system.schemas.agent_outputs import ReportGenOutput
 from interview_system.services.llm_clients import get_llm
+# 1. Import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 
 async def generate_report(session_state: SessionState) -> ReportGenOutput:
@@ -20,20 +22,25 @@ async def generate_report(session_state: SessionState) -> ReportGenOutput:
     env = Environment(loader=FileSystemLoader("src/interview_system/prompts/"))
     template = env.get_template("report_generator.j2")
 
-    prompt = template.render(session_history=session_state["question_history"])
+    # 2. Render the prompt string
+    prompt_string = template.render(session_history=session_state["question_history"])
 
+    # 3. Get the Gemini Pro model
     llm = get_llm(
         model_type="pro"
     )  # Use Pro for a comprehensive and well-formatted report
-    response = await llm.ainvoke(prompt)
+    
+    # 4. THIS IS THE FIX: Force the LLM to return JSON
+    #    matching the ReportGenOutput schema.
+    structured_llm = llm.with_structured_output(ReportGenOutput)
 
     try:
-        start_index = response.content.find("{")
-        end_index = response.content.rfind("}") + 1
-        json_str = response.content[start_index:end_index]
-        response_data = json.loads(json_str)
-        return ReportGenOutput(**response_data)
-    except (json.JSONDecodeError, KeyError) as exc:
+        # 5. Invoke the structured LLM. This will return a Pydantic object, not text.
+        response_data = await structured_llm.ainvoke(prompt_string)
+        return response_data
+        
+    except Exception as exc:
+        # Catch any errors during the structured output generation
         raise ValueError(
-            f"ReportGenAgent returned malformed JSON: {response.content}"
+            f"ReportGenAgent failed to generate structured output: {exc}"
         ) from exc
