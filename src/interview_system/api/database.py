@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from interview_system.config.db_config import db_settings
 from interview_system.models.base import Base
 from sqlalchemy import create_engine
-from contextlib import contextmanager # We'll import this but not use it here
+from contextlib import contextmanager # <-- This is now used
 
 # Create the SQLAlchemy engine that will connect to the database
 engine = create_engine(db_settings.DATABASE_URL)
@@ -32,4 +32,20 @@ def get_db():
     finally:
         db.close()
 
-# The stray '}' at the end has been removed.
+# --- ADD THIS FUNCTION ---
+@contextmanager
+def get_db_session():
+    """
+    Provide a transactional scope around a series of operations
+    for use outside of FastAPI dependencies (e.g., in graph nodes).
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+# --- END OF ADDITION ---

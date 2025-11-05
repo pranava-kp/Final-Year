@@ -4,11 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-# --- 1. ADD THESE TWO LINES AT THE VERY TOP ---
 # This fixes the 'GOOGLE_API_KEY environment variable not set' error.
 from dotenv import load_dotenv
 load_dotenv()
-# --- END OF FIX ---
 
 # Import routers from the application
 from interview_system.auth import router as auth_router
@@ -56,12 +54,17 @@ def startup_event():
 
 # --- Include API Routers ---
 #
-# --- 2. ADD THE /api PREFIX TO ALL ROUTERS ---
-# This makes your backend routes (e.g., /api/auth/login)
-# match your frontend API calls.
+# This section is reverted to the "old" style that was working.
+# The `prefix="/api"` has been removed.
 #
-app.include_router(auth_router.router, prefix="/api")
-app.include_router(interview_router.router, prefix="/api")
-app.include_router(admin_router.router, prefix="/api")
-app.include_router(session_router.router, prefix="/api")
-# --- END OF FIX ---
+app.include_router(auth_router.router)
+app.include_router(interview_router.router)
+app.include_router(admin_router.router)
+app.include_router(session_router.router) 
+
+@app.get("/", tags=["Root"])
+def read_root():
+    """
+    A simple root endpoint to confirm the API is running.
+    """
+    return {"status": "API is running"}

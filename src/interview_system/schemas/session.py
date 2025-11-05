@@ -1,10 +1,9 @@
 # src/interview_system/schemas/session.py
 
 from pydantic import BaseModel, Field, HttpUrl
-from typing import Optional
+from typing import Optional, Any, Dict # <-- Import Any, Dict
 import uuid
 
-# --- ADD THIS NEW CLASS ---
 class ResumeUploadResponse(BaseModel):
     """
     Pydantic model for the response after uploading a resume PDF.
@@ -15,14 +14,12 @@ class ResumeUploadResponse(BaseModel):
 
     class Config:
         from_attributes = True
-# --- END NEW CLASS ---
 
 
 class StartInterviewRequest(BaseModel):
     """
     Pydantic model for the request to start a new interview.
     """
-    # We use HttpUrl to get Pydantic validation
     file_url: Optional[HttpUrl] = Field(
         None, 
         description="A URL to a PDF resume (e.g., from Cloudinary)."
@@ -37,7 +34,6 @@ class StartInterviewRequest(BaseModel):
     )
 
     class Config:
-        # This allows the model to work with ORM objects
         from_attributes = True
 
 
@@ -57,7 +53,6 @@ class SubmitAnswerRequest(BaseModel):
     Pydantic model for the request to submit an answer.
     """
     answer_text: str = Field(..., description="The user's text answer.")
-    # audio_ref: Optional[str] = Field(None, description="Reference to a stored audio file.")
 
     class Config:
         from_attributes = True
@@ -76,6 +71,22 @@ class SubmitAnswerResponse(BaseModel):
         None, 
         description="A follow-up question, if needed."
     )
+    # Adding a status to help the frontend
+    status: str = Field("in_progress", description="Status: 'in_progress' or 'finished'")
+
 
     class Config:
         from_attributes = True
+
+# --- ADD THIS CLASS ---
+class ReportResponse(BaseModel):
+    """
+    Pydantic model for the final interview report.
+    """
+    session_id: str
+    final_report: Optional[Dict[str, Any]]
+    personalization_profile: Optional[Dict[str, Any]]
+
+    class Config:
+        from_attributes = True
+# --- END OF ADDITION ---
