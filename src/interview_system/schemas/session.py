@@ -1,3 +1,4 @@
+# src\interview_system\schemas\session.py
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
 # No longer importing ResumeAnalysisOutput
