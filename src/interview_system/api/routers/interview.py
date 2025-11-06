@@ -50,11 +50,11 @@ async def create_new_interview_session(
     Parses the resume, loads personalization profile, creates an initial
     state, and runs the graph to generate the first question.
     """
-    logger.info(f"--- Endpoint: Starting New Session for user {current_user['id']} ---")
+    logger.info(f"--- Endpoint: Starting New Session for user {current_user['user_id']} ---")
     
-    try:
+    try: # <--- TRY BLOCK STARTS HERE
         # 1. Get User and Personalization Profile (This is the new feature)
-        user_id = current_user["id"]
+        user_id = current_user["user_id"]
         repo = UserRepository(db)
         user_profile = repo.get_personalization_profile(user_id)
         logger.info(f"Loaded personalization profile for user {user_id}: {bool(user_profile)}")
@@ -98,7 +98,7 @@ async def create_new_interview_session(
         final_state = await graph.ainvoke(initial_state, config=config)
         
         # 5. Get First Question
-        current_question = final_state.values.get("current_question")
+        current_question = final_state.get("current_question")
         
         if not current_question:
             raise HTTPException(
@@ -111,7 +111,7 @@ async def create_new_interview_session(
             first_question=current_question.conversational_text 
         )
 
-    except Exception as e:
+    except Exception as e: # <--- ENTIRE TRY BLOCK ENDS HERE
         logger.error(f"Error during initial graph invocation: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -144,12 +144,12 @@ async def submit_answer(
         if not current_state:
             raise HTTPException(status_code=404, detail="Session not found.")
         
-        current_question_dict = current_state.values.get("current_question")
-        if not current_question_dict:
+        current_question = current_state.values.get("current_question")
+        if not current_question:
              raise HTTPException(status_code=400, detail="No active question in state.")
 
         # 2. Update the state with the new answer
-        current_question = QuestionTurn(**current_question_dict)
+        # current_question = QuestionTurn(**current_question_dict) <-- REMOVE THIS LINE
         current_question.answer_text = request.answer_text
         
         # TODO: Implement rubric fetching logic
@@ -174,19 +174,24 @@ async def submit_answer(
         final_state = await graph.ainvoke(None, config=config, at="run_evaluation")
 
         # 4. --- EXTRACT RESPONSE (Corrected Logic) ---
-        next_question_obj_dict = final_state.values.get("current_question")
-        history = final_state.values.get("question_history", [])
+        next_question_obj_dict = final_state.get("current_question")
+        history = final_state.get("question_history", [])
         
         feedback_text = "Feedback is being processed."
         is_follow_up = False
 
         if history:
-            last_turn_in_history = history[-1]
-            if last_turn_in_history.get("feedback"):
+            last_turn_in_history = history[-1] # This is a QuestionTurn object
+            
+            # Use dot notation to check if 'feedback' attribute exists
+            if last_turn_in_history.feedback:
                 # Path A: Normal loop. Feedback was generated.
                 is_follow_up = False
-                feedback_text = last_turn_in_history["feedback"].get(
-                    "fast_summary", "Great, let's move on."
+                
+                # Use dictionary .get() to access the nested 'fast_summary'
+                feedback_text = (
+                    last_turn_in_history.feedback.get("fast_summary")
+                    or "Great, let's move on."
                 )
             else:
                 # Path B: Follow-up loop. Feedback was NOT generated.
@@ -201,8 +206,8 @@ async def submit_answer(
                 status="finished"
             )
 
-        # Re-hydrate the Pydantic model
-        next_question_obj = QuestionTurn(**next_question_obj_dict)
+        # The 'next_question_obj_dict' is already a QuestionTurn object
+        next_question_obj = next_question_obj_dict # Just assign it
 
         if is_follow_up:
             # It's a follow-up question
