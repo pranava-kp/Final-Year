@@ -10,8 +10,11 @@ from ...schemas.session import (
     StartInterviewResponse,
     SubmitAnswerRequest,
     SubmitAnswerResponse,
-    ReportResponse,  # Make sure this is imported
+    ReportResponse,
+    QuestionInSessionResponse, # <-- NEW IMPORT
 )
+# --- NEW IMPORTS for structured data models ---
+from ...schemas.agent_outputs import FeedbackGenOutput, ImprovementPoint, Resource 
 from ...services.pdf_parser import extract_text_from_pdf_url
 # We import the uncompiled workflow to add our checkpointer
 from ...orchestration.graph import get_interview_workflow
@@ -33,7 +36,7 @@ checkpointer = MemorySaver()
 workflow = get_interview_workflow()  # Get the uncompiled workflow definition
 graph = workflow.compile(checkpointer=checkpointer) # Compile it with our checkpointer
 
-# --- Endpoint 1: Start Interview (Corrected) ---
+# --- Endpoint 1: Start Interview (Unchanged) ---
 @router.post(
     "/sessions",
     response_model=StartInterviewResponse,
@@ -47,8 +50,7 @@ async def create_new_interview_session(
 ):
     """
     Starts a new interview session.
-    Parses the resume, loads personalization profile, creates an initial
-    state, and runs the graph to generate the first question.
+    ...
     """
     logger.info(f"--- Endpoint: Starting New Session for user {current_user['user_id']} ---")
     
@@ -118,13 +120,11 @@ async def create_new_interview_session(
             detail="An error occurred while starting the interview.",
         )
 
-# --- Endpoint 2: Submit Answer (from old_interview.py logic) ---
-# --- Endpoint 2: Submit Answer (Corrected) ---
-# --- Endpoint 2: Submit Answer (Corrected) ---
+# --- Endpoint 2: Submit Answer (Updated and Fixed) ---
 @router.post(
     "/sessions/{session_id}/answer",
     response_model=SubmitAnswerResponse,
-    summary="Submit an answer and get the next question/feedback",
+    summary="Submit an answer and get the next question/structured feedback",
 )
 async def submit_answer(
     session_id: str,
@@ -134,7 +134,7 @@ async def submit_answer(
 ):
     """
     Submits an answer, runs the evaluation loop, and returns
-    the next question (or follow-up) and immediate feedback.
+    the next question object and structured immediate feedback.
     """
     logger.info(f"--- Endpoint: Submitting Answer for Session {session_id} ---")
     config = {"configurable": {"thread_id": session_id}, "recursion_limit": 150}
@@ -146,10 +146,15 @@ async def submit_answer(
             raise HTTPException(status_code=404, detail="Session not found.")
         
         current_question = current_state.values.get("current_question")
+        
+        # NOTE: This is where the error was raised. If current_question is None, the interview 
+        # is finished or the client is misbehaving. The error is correct but subsequent 
+        # code needs to be robust if it were to pass.
         if not current_question:
              raise HTTPException(status_code=400, detail="No active question in state.")
 
         # 2. Update the state with the new answer
+        # FIX: current_question is already the Pydantic object (QuestionTurn)
         current_question.answer_text = request.answer_text
         
         # TODO: Implement rubric fetching logic
@@ -173,86 +178,65 @@ async def submit_answer(
         logger.info(f"--- Resuming graph at 'run_evaluation' for {session_id} ---")
         final_state = await graph.ainvoke(None, config=config, at="run_evaluation")
 
-        # 4. --- EXTRACT RESPONSE (Logic ported from new_interactive_interview.py) ---
-        next_question_obj_dict = final_state.get("current_question")
+        # 4. --- EXTRACT RESPONSE FOR NEW STRUCTURED SCHEMA ---
+        next_question_obj = final_state.get("current_question") # This is a QuestionTurn instance
         history = final_state.get("question_history", [])
         
-        feedback_text = "Feedback is being processed." # Default
-        is_follow_up = False
-
-        if history:
-            last_turn_in_history = history[-1] # This is a QuestionTurn object
-            
-            # Use dot notation to check if 'feedback' attribute exists
-            # This 'feedback' attribute is the dictionary from your agent
-            if last_turn_in_history.feedback:
-                # Path A: Normal loop. Feedback was generated.
-                is_follow_up = False
-                
-                # --- START: Logic from new_interactive_interview.py  ---
-                detailed_feedback_dict = last_turn_in_history.feedback
-                
-                # Use .get() for dictionary access
-                improvement_points = detailed_feedback_dict.get("improvement_points")
-                
-                if improvement_points:
-                    # Build a single string from the list of points
-                    feedback_text = "💡 Deeper Feedback:"
-                    bullets = []
-                    for point in improvement_points:
-                        # point is also a dict, use .get()
-                        if point and point.get("bullet"):
-                            bullets.append(f"   - {point.get('bullet')}")
-                    
-                    if bullets:
-                        feedback_text += "\n" + "\n".join(bullets)
-                    else:
-                        # Fallback if points list is empty
-                        feedback_text = "   - Well noted, thank you for your response."
-                
-                else:
-                    # Fallback if 'improvement_points' key doesn't exist
-                    feedback_text = "   - Well noted, thank you for your response."
-                # --- END: Logic from new_interactive_interview.py ---
-            
-            else:
-                # Path B: Follow-up loop. Feedback was NOT generated.
-                is_follow_up = True
-                feedback_text = "Thanks for that. Could you clarify one thing?"
-
-        if not next_question_obj_dict:
-            # Interview has finished
-            logger.info(f"--- Interview finished for session {session_id} ---")
-            return SubmitAnswerResponse(
-                feedback=feedback_text or "Interview complete!",
-                status="finished"
-            )
-
-        # The 'next_question_obj_dict' is already a QuestionTurn object
-        next_question_obj = next_question_obj_dict # Just assign it
-
-        if is_follow_up:
-            # It's a follow-up question
-            return SubmitAnswerResponse(
-                feedback=feedback_text,
-                follow_up_question=next_question_obj.conversational_text,
-                status="in_progress"
+        # 4a. Extract Structured Feedback 
+        last_turn_in_history = history[-1] if history else None
+        
+        if not last_turn_in_history or not last_turn_in_history.feedback:
+            logger.warning("No structured feedback found in history. Using fallback.")
+            structured_feedback = FeedbackGenOutput(
+                improvement_points=[ImprovementPoint(
+                    bullet="Evaluation in progress or session state incomplete.", 
+                    actionable_step="Please continue with the interview."
+                )],
+                resources=[],
+                practice_exercises=[]
             )
         else:
-            # It's a normal next question
-            return SubmitAnswerResponse(
-                feedback=feedback_text,
-                next_question=next_question_obj.conversational_text,
-                status="in_progress"
+            structured_feedback = FeedbackGenOutput(**last_turn_in_history.feedback)
+        
+        # 4b. Determine if finished and process next question
+        is_finished = next_question_obj is None
+        final_next_question = None
+        
+        if not is_finished:
+            # FIX: Convert Pydantic model to dictionary for safe .get() access
+            next_question_dict = next_question_obj.model_dump()
+            raw_data = next_question_dict.get('raw_question', {})
+
+            # FIX: Provide default empty strings for required fields to pass validation
+            final_next_question = QuestionInSessionResponse(
+                question_id=raw_data.get('question_id'),
+                conversational_text=next_question_dict.get('conversational_text'),
+                raw_question_text=raw_data.get('text', ""), 
+                ideal_answer_snippet=raw_data.get('ideal_answer_snippet', ""), 
+                answer_text=next_question_dict.get('answer_text'),
+                answer_audio_ref=next_question_dict.get('answer_audio_ref'),
+                evals=next_question_dict.get('evals') or {},
+                feedback=next_question_dict.get('feedback') or {},
+                timestamp=str(next_question_dict.get('timestamp'))
             )
+            
+        # 5. Return the final structured response
+        return SubmitAnswerResponse(
+            feedback=structured_feedback,
+            next_question=final_next_question,
+            is_finished=is_finished
+        )
         
     except Exception as e:
         logger.error(f"Error processing answer for {session_id}: {e}", exc_info=True)
+        # Re-raise explicit HTTP exceptions if they are 4xx errors
+        if isinstance(e, HTTPException) and e.status_code < 500:
+            raise
         raise HTTPException(
             status_code=500, detail="An error occurred while processing your answer."
         )
 
-# --- Endpoint 3: Get Report (from old_interview.py) ---
+# --- Endpoint 3: Get Report (Synchronous generation re-instated as requested) ---
 @router.get(
     "/sessions/{session_id}/report",
     response_model=ReportResponse,
@@ -265,6 +249,7 @@ async def get_report(
 ):
     """
     Retrieves the final report for a completed interview session.
+    If not found, it attempts to generate it synchronously.
     """
     logger.info(f"--- Endpoint: Fetching report for session {session_id} ---")
     config = {"configurable": {"thread_id": session_id}}
@@ -281,18 +266,20 @@ async def get_report(
 
         # 2. Check if the report exists
         if not report:
-            # This might mean the interview isn't finished.
-            # We can manually invoke the reporting node.
+            # Re-introduce manual invocation to generate the report (as requested by user)
             logger.warning(f"Report not found for {session_id}. Attempting to generate.")
             try:
+                # Synchronous long-running call
                 final_state = await graph.ainvoke(None, config=config, at="final_reporting_entry")
                 report = final_state.values.get("final_report")
                 profile = final_state.values.get("personalization_profile")
             except Exception as e:
+                 # Catch graph invocation errors and treat the report as unavailable
                  logger.error(f"Failed to manually generate report: {e}")
                  raise HTTPException(status_code=404, detail="Report not yet available.")
 
         if not report:
+             # Final check after attempted generation
              raise HTTPException(status_code=404, detail="Report not yet available.")
 
         return ReportResponse(
@@ -302,6 +289,9 @@ async def get_report(
         )
     except Exception as e:
         logger.error(f"Error fetching report for {session_id}: {e}", exc_info=True)
+        # Only raise 500 if the exception wasn't already caught as a 404
+        if isinstance(e, HTTPException) and e.status_code == 404:
+            raise
         raise HTTPException(
             status_code=500, detail="An error occurred while fetching the report."
         )
