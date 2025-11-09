@@ -18,5 +18,5 @@ class ReviewQueueItemResponse(BaseModel):
 
 class ApproveQuestionResponse(BaseModel):
     message: str
-    question_id: uuid.UUID
+    question_id: str
     pinecone_upsert_status: str  # 'success' or 'failed'

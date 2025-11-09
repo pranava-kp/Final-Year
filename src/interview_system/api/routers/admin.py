@@ -62,6 +62,7 @@ def approve_pending_question(
         )
 
     try:
+        # new_question.id will now be the SHA-256 hash string
         new_question = question_repo.create_from_review_item(
             item_to_approve, admin_id=uuid.UUID(admin_user_id)
         )
@@ -75,20 +76,25 @@ def approve_pending_question(
     try:
         vector_store = get_vector_store()
 
-        # --- THIS IS THE FIX ---
-        # We must convert 'None' to an empty string "" for Pinecone.
+        # --- UPDATED PINE CONE UPSERT LOGIC ---
+        # new_question.id is now a string, so explicit str() cast is no longer strictly necessary.
         question_to_upsert = {
-            "id": str(new_question.id),
+            "id": new_question.id,  # Use the string hash directly
             "text": new_question.text,
             "domain": new_question.domain,
             "difficulty": new_question.difficulty,
-            "ideal_answer_snippet": new_question.ideal_answer_snippet
-            or "",  # Coalesce None to ""
+            "ideal_answer_snippet": new_question.ideal_answer_snippet or "",  # Coalesce None to ""
             "rubric_id": new_question.rubric_id or "",  # Coalesce None to ""
         }
-        # --- END OF FIX ---
+        # --- END OF UPDATE ---
 
-        vector_store.upsert_questions([question_to_upsert])
+        # --- THIS IS THE CHANGE ---
+        # Specify the target namespace for the upsert
+        vector_store.upsert_questions(
+            [question_to_upsert], namespace="updated-namespace"
+        )
+        # --- END OF CHANGE ---
+
     except Exception as e:
         pinecone_status = f"failed: {e}"
         # Log the *actual* error to your backend console
@@ -98,7 +104,7 @@ def approve_pending_question(
 
     return ApproveQuestionResponse(
         message="Question approved and indexed successfully.",
-        question_id=new_question.id,
+        question_id=new_question.id,  # Pass the string hash
         pinecone_upsert_status=pinecone_status,
     )
 
