@@ -1,11 +1,14 @@
 # src/interview_system/schemas/session.py
 
-from pydantic import BaseModel, Field, HttpUrl
-from typing import Optional, Any, Dict
 import uuid
+from typing import Optional, Any, Dict
+
+from pydantic import BaseModel, Field, HttpUrl
 
 # NEW IMPORT: Need the structured feedback output from agent_outputs
 from .agent_outputs import FeedbackGenOutput 
+
+# No longer importing ResumeAnalysisOutput
 
 class ResumeUploadResponse(BaseModel):
     """

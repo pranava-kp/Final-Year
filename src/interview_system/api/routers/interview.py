@@ -1,3 +1,5 @@
+# src/interview_system/api/routers/interview.py
+import uuid
 import logging
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
