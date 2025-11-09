@@ -9,8 +9,9 @@ from .base import Base
 class Question(Base):
     __tablename__ = "questions_meta"
 
-    # Use UUID for the primary key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Use a String for the primary key to store the SHA-256 hash
+    # The length of a SHA-256 hex digest is 64 characters.
+    id = Column(String(64), primary_key=True)
 
     # Store the text, domain, etc.
     text = Column(Text, nullable=False)
