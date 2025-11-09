@@ -1,8 +1,9 @@
 # src/interview_system/auth/jwt_utils.py
 
 from datetime import datetime, timedelta, timezone
-from jose import JWTError, jwt
+from jose import JWTError, jwt, ExpiredSignatureError
 from interview_system.config.auth_config import settings
+import logging
 
 # --- Configuration ---
 SECRET_KEY = settings.JWT_SECRET_KEY
@@ -57,5 +58,14 @@ def verify_token(token: str) -> dict | None:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except JWTError:
+    except ExpiredSignatureError:
+        # Token is expired
+        logging.warning("Token verification failed: Signature has expired.")
+        return None
+    except JWTError as e:
+        # This catches all other errors, including:
+        # - Invalid signature (key mismatch)
+        # - Malformed token
+        # - etc.
+        logging.error(f"Token verification failed: {e}")
         return None
