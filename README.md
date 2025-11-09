@@ -18,8 +18,8 @@ Follow these instructions to set up your local development environment.
 First, clone the project from GitHub to your local machine:
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd multi-agentic-rag-system
+git clone https://github.com/NishanthN27/Final-Year.git
+cd Final-Year
 ```
 
 ### 2. Install UV

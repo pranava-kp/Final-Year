@@ -1,144 +1,255 @@
+# src/interview_system/agents/question_retrieval.py
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
 
 from interview_system.schemas.agent_outputs import (
-    JobDescriptionAnalysisOutput,
-    QuestionRetrievalOutput,
-    ResumeAnalysisOutput,
+    ConversationalQuestionOutput,
+    JobDescriptionAnalysisOutput,  # <-- Restored this import
+    RawQuestionData,
+    ResumeAnalysisOutput,  # <-- Restored this import
 )
 from interview_system.services.llm_clients import get_llm
 from interview_system.services.vector_store import get_vector_store
 
+from ..api.database import get_db_session
+from ..repositories.review_queue_repository import ReviewQueueRepository
 
-FALLBACK_MIN_RELEVANCE = 0.75
+logger = logging.getLogger(__name__)  # <-- From your teammate
+
+FALLBACK_MIN_RELEVANCE = 0.35
 
 
-def _build_query_from_signals(
-    domain: str,
-    resume_analysis: Optional[ResumeAnalysisOutput] = None,
-    job_analysis: Optional[JobDescriptionAnalysisOutput] = None,
-    last_topics: Optional[List[str]] = None,
+async def _transform_query(
+    resume_summary: dict | None, job_summary: dict | None, domain: str
 ) -> str:
-    terms: List[str] = [domain]
-    if resume_analysis:
-        terms.extend(resume_analysis.topics)
-        terms.extend([s.name for s in resume_analysis.skills])
-    if job_analysis:
-        terms.extend(job_analysis.required_skills)
-        terms.extend(job_analysis.keywords)
-    if last_topics:
-        terms.extend(last_topics)
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    unique_terms: List[str] = []
-    for t in terms:
-        if t and t.lower() not in seen:
-            unique_terms.append(t)
-            seen.add(t.lower())
-    return ", ".join(unique_terms)
-
-
-def retrieve_question(
-    *,
-    domain: str,
-    difficulty_hint: Optional[int] = None,
-    resume_analysis: Optional[ResumeAnalysisOutput] = None,
-    job_analysis: Optional[JobDescriptionAnalysisOutput] = None,
-    last_topics: Optional[List[str]] = None,
-    top_k: int = 5,
-    min_relevance: float = FALLBACK_MIN_RELEVANCE,
-) -> QuestionRetrievalOutput:
     """
-    Retrieve a question from the local vector DB by domain using signals from
-    resume and job description analysis. If relevance is below threshold,
-    fallback to LLM (Flash) to synthesize a question and ideal answer.
+    Uses a fast LLM to transform resume and job summaries into a natural language query.
     """
+    env = Environment(loader=FileSystemLoader("src/interview_system/prompts/"))
+    template = env.get_template("query_transformer.j2")
+    prompt = template.render(
+        domain=domain, resume_summary=resume_summary, job_summary=job_summary
+    )
+    llm = get_llm(model_type="flash")
+    response = await llm.ainvoke(prompt)
+    return response.content.strip().strip('"')
 
-    query = _build_query_from_signals(
-        domain=domain,
-        resume_analysis=resume_analysis,
-        job_analysis=job_analysis,
-        last_topics=last_topics,
+
+async def _make_question_conversational(
+    raw_question: RawQuestionData,
+) -> ConversationalQuestionOutput:
+    """Uses a fast LLM to rephrase a raw question text to be conversational."""
+    env = Environment(loader=FileSystemLoader("src/interview_system/prompts/"))
+    template = env.get_template("make_question_conversational.j2")
+    prompt = template.render(question_text=raw_question.text)
+    llm = get_llm(model_type="flash")
+    response = await llm.ainvoke(prompt)
+    return ConversationalQuestionOutput(
+        conversational_text=response.content.strip(), raw_question=raw_question
     )
 
-    # Build Chroma where filter with a single root operator when combining
-    conditions: List[Dict[str, Any]] = [{"domain": domain}]
-    if difficulty_hint is not None:
-        conditions.append({"difficulty": {"$gte": max(1, difficulty_hint - 2)}})
-        conditions.append({"difficulty": {"$lte": min(10, difficulty_hint + 2)}})
-    where: Dict[str, Any]
-    if len(conditions) == 1:
-        where = conditions[0]
-    else:
-        where = {"$and": conditions}
 
-    store = get_vector_store()
-    candidates = store.query_similar(query_text=query, top_k=top_k, where=where)
-
-    if candidates:
-        best = candidates[0]
-        meta = best.get("metadata", {}) or {}
-        relevance = float(best.get("relevance_score", 0.0))
-        if relevance >= min_relevance:
-            return QuestionRetrievalOutput(
-                question_id=str(best.get("id")) if best.get("id") else None,
-                text=str(best.get("text")),
-                domain=str(meta.get("domain", domain)),
-                difficulty=int(meta.get("difficulty") or difficulty_hint or 5),
-                ideal_answer_snippet=str(meta.get("ideal_answer_snippet") or ""),
-                rubric_id=(str(meta.get("rubric_id")) if meta.get("rubric_id") else None),
-                relevance_score=relevance,
-            )
-
-    # Fallback generation via Flash
+# --- This is your teammate's good, fixed fallback function ---
+async def _generate_and_present_fallback(
+    domain: str,
+    difficulty: int,
+    last_topics: List[str],
+    resume_summary: dict | None,
+    job_summary: dict | None,
+) -> ConversationalQuestionOutput:
+    """
+    If no relevant question is found, generates a new one and presents it.
+    """
     env = Environment(loader=FileSystemLoader("src/interview_system/prompts/"))
-    profile_data: Dict[str, Any] = {
-        "domain": domain,
-        "difficulty": difficulty_hint or 5,
-        "resume_topics": resume_analysis.topics if resume_analysis else [],
-        "job_keywords": job_analysis.keywords if job_analysis else [],
-        "last_topics": last_topics or [],
-    }
+    template = env.get_template("generate_and_present_fallback.j2")
 
-    try:
-        template = env.get_template("question_fallback.j2")
-        prompt = template.render(
-            domain=domain,
-            difficulty=profile_data["difficulty"],
-            resume_topics=profile_data["resume_topics"],
-            job_keywords=profile_data["job_keywords"],
-            last_topics=profile_data["last_topics"],
-        )
-    except Exception:
-        # Inline backup prompt if template is missing
-        prompt = (
-            "You are a helpful assistant that generates one interview question and a short "
-            "ideal answer snippet. Respond with ONLY JSON keys 'text', 'domain', 'difficulty', "
-            "'ideal_answer_snippet'.\n"
-            f"Profile: {json.dumps(profile_data)}"
-        )
+    resume_topics = resume_summary.get("topics", []) if resume_summary else []
+    job_keywords_list = job_summary.get("must_have_keywords", []) if job_summary else []
+
+    prompt = template.render(
+        domain=domain,
+        difficulty=difficulty,
+        last_topics=last_topics,
+        resume_topics=resume_topics,
+        job_keywords=job_keywords_list,
+    )
 
     llm = get_llm(model_type="flash")
-    response = llm.invoke(prompt)
+    response = await llm.ainvoke(prompt)
 
     try:
-        clean = (
-            response.content.strip().replace("```json", "").replace("```", "").strip()
-        )
-        data = json.loads(clean)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Fallback generation returned non-JSON: {response.content}") from exc
+        # --- THIS IS THE FIX ---
+        # Find the first { and the last } to extract the JSON
+        # This strips the "```json\n" prefix and "\n```" suffix
+        start_index = response.content.find("{")
+        end_index = response.content.rfind("}") + 1
 
-    return QuestionRetrievalOutput(
-        question_id=None,
-        text=str(data.get("text")),
-        domain=str(data.get("domain", domain)),
-        difficulty=int(data.get("difficulty", difficulty_hint or 5)),
-        ideal_answer_snippet=str(data.get("ideal_answer_snippet", "")),
-        rubric_id=None,
-        relevance_score=0.0,
+        if start_index == -1 or end_index == -1:
+            raise json.JSONDecodeError("No JSON object found", response.content, 0)
+
+        json_str = response.content[start_index:end_index]
+        data = json.loads(json_str)
+        try:
+            with get_db_session() as db:
+                repo = ReviewQueueRepository(db)
+                repo.create_pending_question(question_json=data)
+            logger.info(
+                f"Successfully saved fallback question for '{domain}' to review queue."
+            )
+        except Exception as db_exc:
+            # Log the error, but don't fail the interview for the user
+            logger.error(
+                f"Failed to save fallback question to review queue: {db_exc}",
+                exc_info=True,
+            )
+
+        # Check if "raw_question" key exists as per your original file's logic
+        if "raw_question" in data and isinstance(data["raw_question"], dict):
+            raw_question = RawQuestionData(**data["raw_question"])
+        else:
+            # Fallback to the teammate's safer parsing
+            raw_question = RawQuestionData(
+                question_id=None,
+                text=data.get("raw_question_text"),
+                domain=domain,
+                difficulty=difficulty,
+                ideal_answer_snippet=data.get("ideal_answer_snippet"),
+            )
+
+        return ConversationalQuestionOutput(
+            conversational_text=data.get("conversational_text"),
+            raw_question=raw_question,
+        )
+    except (json.JSONDecodeError, KeyError) as exc:
+        logger.warning(
+            f"Fallback generation returned malformed JSON: {response.content}. Using raw text.",
+            exc_info=True,
+        )
+        # The recovery logic now only uses the raw text, which is *still* bad
+        # but the try block above should now succeed.
+        raw_question = RawQuestionData(
+            question_id=None,
+            text=response.content,
+            domain=domain,
+            difficulty=difficulty,
+            ideal_answer_snippet="Answer to the best of your ability.",
+        )
+        return ConversationalQuestionOutput(
+            conversational_text=response.content, raw_question=raw_question
+        )
+
+
+# --- This is the retrieve_question function with the RAG FIX ---
+# --- It REPLACES your teammate's broken one ---
+async def retrieve_question(
+    *,
+    domain: str,
+    resume_analysis: ResumeAnalysisOutput | dict | None = None,
+    job_analysis: JobDescriptionAnalysisOutput | dict | None = None,
+    last_topics: List[str] | None = None,
+    difficulty_hint: int = 5,
+    min_relevance: float = FALLBACK_MIN_RELEVANCE,
+) -> ConversationalQuestionOutput:
+    logger.info(f"--- Agent: Retrieving question for domain: {domain} ---")
+
+    # This logic handles both dicts and Pydantic models
+    resume_dict = None
+    if resume_analysis:
+        if isinstance(resume_analysis, dict):
+            resume_dict = resume_analysis
+            resume_analysis = ResumeAnalysisOutput(**resume_analysis)
+        else:
+            resume_dict = resume_analysis.model_dump()
+
+    job_dict = None
+    if job_analysis:
+        if isinstance(job_analysis, dict):
+            job_dict = job_analysis
+            job_analysis = JobDescriptionAnalysisOutput(**job_analysis)
+        else:
+            job_dict = job_analysis.model_dump()
+
+    transformed_query = await _transform_query(
+        resume_summary=resume_dict,
+        job_summary=job_dict,
+        domain=domain,
+    )
+    logger.info(f"Transformed query: {transformed_query}")
+
+    # --- RAG FIX ---
+    # 1. Build a filter *only* for difficulty.
+    difficulty_conditions: List[Dict[str, Any]] = []
+    if difficulty_hint is not None:
+        difficulty_conditions.append(
+            {"difficulty": {"$gte": max(1, difficulty_hint - 2)}}
+        )
+        difficulty_conditions.append(
+            {"difficulty": {"$lte": min(10, difficulty_hint + 2)}}
+        )
+
+    where = (
+        {"$and": difficulty_conditions}
+        if len(difficulty_conditions) > 1
+        else (difficulty_conditions[0] if difficulty_conditions else {})
     )
 
+    store = get_vector_store()
 
+    # 2. Fetch more candidates
+    candidates = store.query_similar(
+        query_text=transformed_query,
+        top_k=5,  # Fetch 5 to filter in Python
+        where=where,
+        namespace="updated-namespace",
+    )
+
+    best_match = None
+
+    if candidates:
+        # 3. Filter in Python
+        for candidate in candidates:
+            meta = candidate.get("metadata", {}) or {}
+            meta_domain = str(meta.get("domain", "")).strip()
+
+            is_match = (
+                meta_domain == domain
+                or meta_domain.endswith(f"-{domain}")
+                or meta_domain.endswith(f":{domain}")
+            )
+
+            if is_match:
+                best_match = candidate
+                break  # Found the best, most relevant match
+
+    if best_match:
+        relevance = float(best_match.get("relevance_score", 0.0))
+        logger.info(f"--- Best candidate relevance: {relevance} ---")
+
+        if relevance >= min_relevance:
+            meta = best_match.get("metadata", {}) or {}
+            raw_question = RawQuestionData(
+                question_id=str(best_match.get("id")) if best_match.get("id") else None,
+                text=str(meta.get("text", "")),
+                domain=str(meta.get("domain", domain)),
+                difficulty=int(meta.get("difficulty", difficulty_hint)),
+                ideal_answer_snippet=str(meta.get("ideal_answer_snippet") or ""),
+                rubric_id=(
+                    str(meta.get("rubric_id")) if meta.get("rubric_id") else None
+                ),
+                relevance_score=relevance,
+            )
+            return await _make_question_conversational(raw_question)
+
+    logger.info(
+        "--- Low relevance or no matching domain, triggering LLM fallback generation ---"
+    )
+    return await _generate_and_present_fallback(
+        domain=domain,
+        difficulty=difficulty_hint,
+        last_topics=last_topics or [],
+        resume_summary=resume_dict,  # Pass the dicts
+        job_summary=job_dict,
+    )

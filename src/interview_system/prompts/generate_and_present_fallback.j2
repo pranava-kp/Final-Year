@@ -1,0 +1,31 @@
+You are an expert interviewer. Your task is to generate one single, new interview question.
+
+### CRITICAL RULES ###
+1.  The generated question's domain MUST be exactly: "{{ domain }}".
+2.  **The question's difficulty and scope MUST be appropriate for the candidate's seniority level: `{{ job_analysis.seniority if job_analysis else 'Entry-Level' }}`.**
+3.  The `difficulty` value in the output JSON **MUST be an integer between 1 and 10**.
+    - For "Intern" or "Junior" roles, the integer should be between 2 and 4.
+    - For "Mid-Level" roles, it should be between 4 and 6.
+    - For "Senior" roles, it should be between 6 and 8.
+4.  Do not ask about topics not mentioned in the context below.
+5.  Respond with ONLY a single, valid JSON object.
+
+### Context ###
+{
+  "resume_topics": {{ resume_topics | tojson }},
+  "job_keywords": {{ job_keywords | tojson }},
+  "questions_already_asked": {{ last_topics | tojson }}
+}
+
+### JSON Schema to Follow ###
+{
+  "conversational_text": "<A natural, flowing sentence that introduces the new question. Ensure it sounds friendly and engaging. Do NOT make assumptions about the answer to previous questions.Do not make it shorter than the actual generated raw text of the question(defined below).>",
+  "raw_question": {
+    "text": "<The raw text of the new question you generated>",
+    "domain": "{{ domain }}",
+    "difficulty": <An integer from 1-10 based on the seniority level>,
+    "ideal_answer_snippet": "<A concise, 2-3 sentence directive for what a good answer should include.>"
+  }
+}
+
+### YOUR JSON RESPONSE ###

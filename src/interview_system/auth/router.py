@@ -23,16 +23,23 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Registers a new user and saves them to the database.
     """
+    print("--- 1. REGISTER endpoint hit! ---")
 
     user_repo = UserRepository(db)
+    print("--- 2. Database session acquired and repository created. ---")
+
     existing_user = user_repo.get_by_email(user_data.email)
+    print(f"--- 3. Checked for existing user with email: {user_data.email} ---")
+
     if existing_user:
+        print("--- 4a. User exists, raising conflict error. ---")
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, 
+            status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered"
         )
-    
+
     new_user = user_repo.create(user_data)
+    print("--- 4b. New user created in database. ---")
     return new_user
 
 
@@ -52,10 +59,11 @@ def login_for_access_token(user_credentials: UserLogin, db: Session = Depends(ge
         )
     
     # Create tokens
-    access_token = create_access_token(data={"user_id": str(user.id)})
-    refresh_token = create_refresh_token(data={"user_id": str(user.id)})
-    
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    token_data = {"user_id": str(user.id), "role": user.role}
+    access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data={"user_id": str(user.id)}) # Refresh token can stay simple
+    return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer")
+
 
 
 @router.post("/logout")

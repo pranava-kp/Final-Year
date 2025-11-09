@@ -1,13 +1,12 @@
-# src/interview_system/agents/job_description_analyzer.py
-
 import json
 from jinja2 import Environment, FileSystemLoader
 
 # The class name here MUST be "JobDescriptionAnalysisOutput"
 from interview_system.schemas.agent_outputs import JobDescriptionAnalysisOutput
 from interview_system.services.llm_clients import get_llm
+from langchain_core.prompts import PromptTemplate
 
-def analyze_job_description(job_desc_text: str) -> JobDescriptionAnalysisOutput:
+async def analyze_job_description(job_desc_text: str) -> JobDescriptionAnalysisOutput:
     """
     Analyzes a job description using an LLM to extract structured data.
 
@@ -19,14 +18,28 @@ def analyze_job_description(job_desc_text: str) -> JobDescriptionAnalysisOutput:
     """
     env = Environment(loader=FileSystemLoader("src/interview_system/prompts/"))
     template = env.get_template("job_description_analyzer.j2")
-    prompt = template.render(job_desc_text=job_desc_text)
+    prompt_string = template.render(job_desc_text=job_desc_text)
+    
+    # Create a PromptTemplate for the chain
+    prompt = PromptTemplate.from_template(prompt_string)
+
+    # 1. Get the base LLM
     llm = get_llm(model_type="pro")
-    response = llm.invoke(prompt)
 
+    # 2. THIS IS THE FIX: Create a new LLM that is
+    #    forced to return JSON matching your Pydantic schema.
+    structured_llm = llm.with_structured_output(JobDescriptionAnalysisOutput)
+
+    # 3. Create the chain WITHOUT the manual JsonOutputParser
+    #    We pass an empty dict {} because the prompt is already fully rendered
+    chain = structured_llm
+
+    # 4. Invoke the new chain
+    # The 'response' will now be a perfectly-formed JobDescriptionAnalysisOutput object
     try:
-        clean_content = response.content.strip().replace("```json", "").replace("```", "").strip()
-        response_data = json.loads(clean_content)
-    except json.JSONDecodeError:
-        raise ValueError(f"Failed to decode LLM response as JSON. Raw content: {response.content}")
+        response_data = await chain.ainvoke(prompt_string)
+    except Exception as e:
+        # This will catch errors if the LLM *still* fails to output valid JSON
+        raise ValueError(f"Failed to get structured output from LLM: {e}")
 
-    return JobDescriptionAnalysisOutput(**response_data)
+    return response_data

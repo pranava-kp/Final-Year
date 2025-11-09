@@ -1,13 +1,13 @@
 import json
-
 from jinja2 import Environment, FileSystemLoader
 
 # Corrected the import statement to use ResumeAnalysisOutput
 from interview_system.schemas.agent_outputs import ResumeAnalysisOutput
 from interview_system.services.llm_clients import get_llm
+from langchain_core.prompts import PromptTemplate
 
 
-def analyze_resume(resume_text: str) -> ResumeAnalysisOutput:
+async def analyze_resume(resume_text: str) -> ResumeAnalysisOutput:
     """
     Analyzes resume text using an LLM to extract structured data.
 
@@ -22,38 +22,25 @@ def analyze_resume(resume_text: str) -> ResumeAnalysisOutput:
     template = env.get_template("resume_analyzer.j2")
 
     # 2. Render the prompt with the user's resume text
-    prompt = template.render(resume_text=resume_text)
+    prompt_string = template.render(resume_text=resume_text)
+
+    # Create a PromptTemplate for the chain
+    prompt = PromptTemplate.from_template(prompt_string)
 
     # 3. Get the Gemini Pro model
     llm = get_llm(model_type="pro")
 
-    # 4. Invoke the model and get the response
-    response = llm.invoke(prompt)
+    # 4. THIS IS THE FIX: Force the LLM to return
+    #    JSON matching the ResumeAnalysisOutput schema.
+    structured_llm = llm.with_structured_output(ResumeAnalysisOutput)
 
-    # 5. Parse the JSON response from the model
+    # 5. Invoke the model and get the response
+    # The 'response_data' will be a perfectly-formed ResumeAnalysisOutput object
     try:
-        # The response.content should be a JSON string.
-        # It might be wrapped in markdown, so we clean it first.
-        clean_content = response.content.strip().replace("```json", "").replace("```", "").strip()
-        response_data = json.loads(clean_content)
-    except json.JSONDecodeError:
-        # Add the raw content to the error for better debugging
-        raise ValueError(f"Failed to decode LLM response as JSON. Raw content: {response.content}")
+        response_data = await structured_llm.ainvoke(prompt_string)
+    except Exception as e:
+        # This will catch errors if the LLM *still* fails to output valid JSON
+        raise ValueError(f"Failed to get structured output from LLM: {e}")
 
     # 6. Validate the data against our Pydantic schema and return
-    return ResumeAnalysisOutput(**response_data)
-if __name__ == "__main__":
-    sample_resume = """
-    John Doe
-    Backend Engineer
-    Experience: 5 years of experience in Python and Java. Proficient in Django, Flask, and Spring Boot.
-    Projects:
-    1. E-commerce Platform: Designed and implemented a microservices-based e-commerce platform using Python and Django.
-    2. Data Processing Pipeline: Built a distributed data processing pipeline with Apache Kafka.
-    """
-    try:
-        analysis = analyze_resume(sample_resume)
-        print("Analysis successful!")
-        print(analysis.model_dump_json(indent=2))
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    return response_data
