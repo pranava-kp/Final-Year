@@ -362,8 +362,19 @@ const CandidateDashboardPage = () => {
     setIsLoading(true); // Keep spinner active
     try {
       const reportData = await getReportApi(sessionId, token);
-      // --- THIS LINE IS CHANGED ---
-      setFinalReport(reportData); // Save the *entire* report object
+
+      // --- THIS IS THE FIX ---
+      // The API returns the state, and the report is nested.
+      // We must extract the 'final_report' object.
+      if (reportData && reportData.final_report) {
+        setFinalReport(reportData.final_report); // Save the NESTED report object
+      } else {
+        // Handle cases where the report object is missing
+        console.error("Report data is missing from API response:", reportData);
+        throw new Error("Report data not found in the response.");
+      }
+      // --- END FIX ---
+
       setInterviewPhase("report"); // Change the UI to show the report
     } catch (err) {
       setError(err.detail || "Could not fetch your report.");
