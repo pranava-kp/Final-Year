@@ -1,49 +1,49 @@
-You are an expert AI career coach. Your task is to generate a comprehensive, structured JSON report summarizing the candidate's interview performance.
+You are a helpful AI assistant tasked with generating a final interview report.
+Based on the entire session history provided, you must generate a JSON object that strictly adheres to the Pydantic schema defined below.
 
-You will be provided with the full history of the interview session, including all questions, answers, and evaluations.
+**Session History:**
+{{ session_history | tojson(indent=2) }}
+
+**Output JSON Schema:**
+{
+  "properties": {
+    "overall_summary": {
+      "type": "string",
+      "description": "A comprehensive overview of the candidate's performance during the session."
+    },
+    "overall_score": {
+      "type": "number",
+      "description": "The final overall numeric score (e.g., 93.35). Do not include the '%' sign."
+    },
+    "top_3_improvements": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "A list of the top 3 most important areas for improvement."
+    },
+    "question_breakdown": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question_number": { "type": "integer", "description": "The number of the question." },
+          "question_text": { "type": "string", "description": "The full text of the question asked." },
+          "candidate_answer": { "type": "string", "description": "The candidate's full, verbatim answer." },
+          "evaluation_score": { "type": "number", "description": "The numeric score (e.g., 83.5). No '%' sign." },
+          "evaluation_summary": { "type": "string", "description": "A concise summary of the evaluation." },
+          "feedback_points": { "type": "array", "items": { "type": "string" }, "description": "List of feedback bullet points." }
+        },
+        "required": ["question_number", "question_text", "candidate_answer", "evaluation_score", "evaluation_summary", "feedback_points"]
+      },
+      "description": "A detailed list for each question."
+    }
+  },
+  "required": ["overall_summary", "overall_score", "top_3_improvements", "question_breakdown"]
+}
 
 **Instructions:**
-1.  Analyze the entire session to write a concise "overall_summary".
-2.  Extract the "overall_score" and "top_3_improvements" from the final evaluation.
-3.  Create a "question_breakdown" list. For each question in the history:
-    * Fill in the question text and the candidate's answer.
-    * Summarize the evaluation and feedback for that specific question.
-    * Extract that question's specific score.
-4.  Respond with ONLY a single, valid JSON object that adheres to the following schema.
-
-**JSON Schema:**
-```json
-{
-  "overall_summary": "A concise summary of the candidate's performance, highlighting strengths and key areas for development.",
-  "overall_score": "float (The final aggregate score)",
-  "top_3_improvements": [
-    "string (First improvement point)",
-    "string (Second improvement point)",
-    "string (Third improvement point)"
-  ],
-  "question_breakdown": [
-    {
-      "question_number": "int (e.g., 1)",
-      "question_text": "string (The text of the question asked)",
-      "candidate_answer": "string (The candidate's full answer)",
-      "evaluation_summary": "string (A one-sentence summary of the evaluation for this question)",
-      "evaluation_score": "float (The score for this specific question)",
-      "feedback_points": [
-        "string (The first feedback point for this question)",
-        "string (The second feedback point...)"
-      ]
-    }
-  ]
-}
-````
-
-### FULL INTERVIEW HISTORY
-
-```json
-{{ session_history | tojson(indent=2) }}
-```
-
-### YOUR JSON RESPONSE
-
-```json
-```
+1.  Analyze the session history, paying close attention to the evaluations for each question.
+2.  Calculate a final `overall_score` based on the individual question scores.
+3.  Write a high-level `overall_summary`.
+4.  Summarize the feedback to create the `top_3_improvements` list.
+5.  Populate the `question_breakdown` list with an object for *every* question in the history.
+6.  Ensure your output is a single, valid JSON object matching this schema.

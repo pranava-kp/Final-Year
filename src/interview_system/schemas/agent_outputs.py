@@ -145,26 +145,43 @@ class PersonalizationOutput(BaseModel):
         ..., description="List of recommended exercise/question IDs."
     )
 
+
 class QuestionBreakdownItem(BaseModel):
-    question_number: int
-    question_text: str
-    candidate_answer: str
-    evaluation_summary: str
-    evaluation_score: float
-    feedback_points: List[str]
+    """A detailed analysis of a single interview question."""
 
-# --- ReportGenAgent ---
+    question_number: int = Field(..., description="The number of the question, e.g., 1")
+    question_text: str = Field(..., description="The full text of the question asked.")
+    candidate_answer: str = Field(
+        ..., description="The candidate's full, verbatim answer."
+    )
+    evaluation_score: float = Field(
+        ...,
+        description="The numeric score for this question (e.g., 83.5). Do not include the '%' sign.",
+    )
+    evaluation_summary: str = Field(
+        ..., description="A concise summary of the evaluation for this specific answer."
+    )
+    feedback_points: List[str] = Field(
+        ..., description="A list of specific feedback bullet points for improvement."
+    )
+
+
 class ReportGenOutput(BaseModel):
-    overall_summary: str
-    overall_score: float
-    top_3_improvements: List[str]
-    question_breakdown: List[QuestionBreakdownItem]
+    """The final structured JSON report for the interview session."""
 
-    @field_validator("top_3_improvements")
-    def validate_top_3(cls, v):
-        if len(v) != 3:
-            raise ValueError("top_3_improvements must contain exactly 3 items")
-        return v
-
-
-
+    overall_summary: str = Field(
+        ...,
+        description="A comprehensive overview of the candidate's performance during the session.",
+    )
+    overall_score: float = Field(
+        ...,
+        description="The final overall numeric score (e.g., 93.35). Do not include the '%' sign.",
+    )
+    top_3_improvements: List[str] = Field(
+        ...,
+        description="A list of the top 3 most important areas for improvement for the candidate.",
+    )
+    question_breakdown: List[QuestionBreakdownItem] = Field(
+        ...,
+        description="A detailed list, with one entry for each question asked during the interview.",
+    )

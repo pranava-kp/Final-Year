@@ -40,6 +40,10 @@ async def generate_report(session_state: SessionState) -> ReportGenOutput:
         return response_data
         
     except Exception as exc:
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("!!! REPORT_GENERATOR FAILED: THIS IS THE REAL ERROR !!!")
+        print(exc)
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         # Catch any errors during the structured output generation
         raise ValueError(
             f"ReportGenAgent failed to generate structured output: {exc}"
