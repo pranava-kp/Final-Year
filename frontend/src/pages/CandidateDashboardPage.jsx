@@ -25,6 +25,7 @@ import {
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import { useNavigate } from "react-router-dom";
 import LoadingSpinner from "../components/LoadingSpinner.jsx";
+import useWebSpeech from "../hooks/useWebSpeech";
 
 // --- (ChatBubble component is unchanged) ---
 const ChatBubble = ({ message }) => {
@@ -174,6 +175,29 @@ const CandidateDashboardPage = () => {
 
   // --- (State for final report is unchanged) ---
   const [finalReport, setFinalReport] = useState(null);
+
+  // === WEB SPEECH API HOOK INTEGRATION ===
+  const { isListening, transcript, startListening, stopListening, hasSupport } =
+    useWebSpeech();
+
+  // Ref to store input text before speaking starts (to append instead of replace)
+  const previousInputRef = useRef("");
+
+  // Snapshot the current text when listening starts
+  useEffect(() => {
+    if (isListening) {
+      previousInputRef.current = currentInput;
+    }
+  }, [isListening]);
+
+  // Update currentInput with the transcript as you speak
+  useEffect(() => {
+    if (transcript && isListening) {
+      const prefix = previousInputRef.current;
+      const spacer = prefix && !prefix.endsWith(" ") ? " " : "";
+      setCurrentInput(`${prefix}${spacer}${transcript}`);
+    }
+  }, [transcript, isListening]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -652,12 +676,24 @@ const CandidateDashboardPage = () => {
                   />
                   {/* --- CHAT SUBMIT BUTTON (Unchanged) --- */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-                    <button
-                      className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
-                      disabled={isLoading || isAuthLoading}
-                    >
-                      <Mic className="w-5 h-5" />
-                    </button>
+                    {/* --- UPDATED MIC BUTTON FOR STT --- */}
+                    {hasSupport && (
+                      <button
+                        onClick={isListening ? stopListening : startListening}
+                        className={`p-2 rounded-full transition-colors ${
+                          isListening
+                            ? "bg-red-500 text-white animate-pulse"
+                            : "hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        }`}
+                        title={
+                          isListening ? "Stop Recording" : "Start Voice Input"
+                        }
+                        disabled={isLoading || isAuthLoading}
+                      >
+                        <Mic className="w-5 h-5" />
+                      </button>
+                    )}
+
                     <button
                       onClick={activeSubmitHandler}
                       disabled={!canSubmit}

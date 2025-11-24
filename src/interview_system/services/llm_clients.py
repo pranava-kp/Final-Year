@@ -25,13 +25,13 @@ def get_llm(model_type: str = "pro"):
     if model_type == "pro":
         # Gemini 2.5 Pro: For high-quality, complex reasoning tasks.
         return ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             google_api_key=GOOGLE_API_KEY  # Pass the key here
         )
     elif model_type == "flash":
         # Gemini 2.5 Flash: For speed-critical, high-volume tasks.
         return ChatGoogleGenerativeAI(
-            model="gemini-2.5-pro",
+            model="gemini-2.5-flash",
             google_api_key=GOOGLE_API_KEY  # Pass the key here
         )
     else:
