@@ -49,27 +49,25 @@ const AdminLayout = () => {
   const { logout } = useAuth();
   const location = useLocation();
 
-  const getHeaderTitle = (pathname) => {
-    if (pathname.startsWith('/admin/review-queue')) return { title: 'Review Queue', subtitle: 'Manage pending interview questions' };
-    return { title: 'Overview', subtitle: 'System performance and activities' };
-  };
-
-  const { title, subtitle } = getHeaderTitle(location.pathname);
-
   return (
-    <div className={`flex min-h-screen bg-slate-50 dark:bg-slate-950 ${isDark ? 'dark' : ''}`}>
+    <div className={`min-h-screen bg-slate-50 dark:bg-slate-950 ${isDark ? 'dark' : ''}`}>
 
-      {/* --- Sidebar --- */}
+      {/* --- Sidebar (Fixed Position) --- */}
       <motion.div
+        initial={false}
         animate={{ width: isSidebarCollapsed ? '5rem' : '16rem' }}
         transition={{ duration: 0.3, ease: 'easeInOut' }}
-        className="relative flex flex-col h-screen p-4 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-20 shadow-xl shadow-slate-200/50 dark:shadow-none"
+        className="fixed top-0 left-0 h-screen flex flex-col p-4 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50 shadow-xl shadow-slate-200/50 dark:shadow-none"
       >
-        <div className="flex items-center justify-between mb-8 pl-1 h-10">
+        <div className="flex items-center justify-between mb-8 pl-1 h-10 shrink-0">
            {!isSidebarCollapsed && (
-             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+             <motion.span 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600"
+             >
                Admin<span className="font-light text-slate-800 dark:text-slate-200">Panel</span>
-             </span>
+             </motion.span>
            )}
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -80,12 +78,12 @@ const AdminLayout = () => {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-1 overflow-y-auto no-scrollbar">
           <SidebarLink to="/admin" icon={LayoutDashboard} text="Dashboard" isCollapsed={isSidebarCollapsed} />
           <SidebarLink to="/admin/review-queue" icon={ClipboardList} text="Review Queue" isCollapsed={isSidebarCollapsed} />
         </nav>
 
-        <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center space-y-3">
+        <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center space-y-3 shrink-0">
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleTheme}
@@ -107,10 +105,18 @@ const AdminLayout = () => {
         </div>
       </motion.div>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+      {/* --- Main Content Area (Pushed by sidebar margin) --- */}
+      <motion.div
+        initial={false}
+        animate={{ marginLeft: isSidebarCollapsed ? '5rem' : '16rem' }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        className="flex-1 min-h-screen"
+      >
+        {/* Use flex column to ensure full height content areas if needed */}
+        <main className="p-6 h-full">
+          <Outlet />
+        </main>
+      </motion.div>
     </div>
   );
 };
