@@ -11,6 +11,7 @@ from ...repositories.review_queue_repository import ReviewQueueRepository
 from ...repositories.question_repository import QuestionRepository
 from ...services.vector_store import get_vector_store
 from ...schemas.admin import ReviewQueueItemResponse, ApproveQuestionResponse
+from ...repositories.user_repository import UserRepository
 
 router = APIRouter(
     prefix="/admin",
@@ -140,3 +141,29 @@ def reject_pending_question(
     review_repo.update_status(item_to_reject, status="rejected")
 
     return {"message": f"Item {item_id} has been rejected."}
+@router.get("/stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns statistics for the admin dashboard.
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        )
+    
+    review_repo = ReviewQueueRepository(db)
+    user_repo = UserRepository(db)
+    
+    # 1. Count pending reviews
+    pending_count = len(review_repo.get_pending_questions())
+    
+    # 2. Count ONLY candidates (filtering out admins)
+    total_candidates = user_repo.count_by_role("candidate")
+    
+    return {
+        "pending_reviews": pending_count,
+        "total_users": total_candidates  # Keeping key 'total_users' for frontend compatibility
+    }

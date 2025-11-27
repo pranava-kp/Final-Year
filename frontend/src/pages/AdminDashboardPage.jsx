@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useAuth } from "../contexts/AuthContext";
+import { adminStatsApi } from "../services/adminApi";
 
 const DashboardHeader = ({ user }) => {
   const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -96,15 +97,27 @@ const ReviewQueueCard = ({ pendingCount }) => (
 const AdminDashboardPage = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState({
-    pendingReviews: 12,
-    totalUsers: 1245,
+    pendingReviews: 0,
+    totalUsers: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate data fetch
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
+    const fetchDashboardStats = async () => {
+      try {
+        const data = await adminStatsApi.getStats();
+        setStats({
+          pendingReviews: data.pending_reviews,
+          totalUsers: data.total_users,
+        });
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardStats();
   }, []);
 
   if (isLoading) {
@@ -125,16 +138,14 @@ const AdminDashboardPage = () => {
       >
         <DashboardHeader user={user} />
 
-        {/* Primary Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Main Action Area (Span 2 columns) */}
           <div className="lg:col-span-2">
             <ReviewQueueCard pendingCount={stats.pendingReviews} />
           </div>
 
-          {/* Quick Stats Sidebar (Span 1 column) */}
           <div className="flex flex-col gap-4">
+             {/* Updated Label */}
              <QuickStat 
               label="Total Users" 
               value={stats.totalUsers.toLocaleString()} 
