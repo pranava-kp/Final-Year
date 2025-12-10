@@ -1,5 +1,5 @@
 # Environment variables
-.env*
+.env
 
 # Virtual Environment
 .venv/
@@ -22,26 +22,26 @@ analysis_flaws_and_suggestions.txt
 tempCodeRunnerFile.python
 report.html
 -e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
+# # Environment files
+# # *.env
+# # *.env.*
+# -e 
+# # Environment files
+# *.env
+# *.env.*
+# -e 
+# # Environment files
+# *.env
+# *.env.*
+# -e 
+# # Environment files
+# *.env
+# *.env.*
+# -e 
+# # Environment files
+# *.env
+# *.env.*
+# -e 
+# # Environment files
+# *.env
+# *.env.*
