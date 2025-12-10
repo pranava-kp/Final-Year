@@ -21,3 +21,7 @@ __pycache__/
 analysis_flaws_and_suggestions.txt
 tempCodeRunnerFile.python
 report.html
+-e 
+# Environment files
+*.env
+*.env.*
