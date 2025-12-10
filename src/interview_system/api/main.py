@@ -68,3 +68,14 @@ def read_root():
     A simple root endpoint to confirm the API is running.
     """
     return {"status": "API is running"}
+
+@app.get("/health", tags=["Health"])
+def health_check():
+    """
+    Health check endpoint for Docker and monitoring systems.
+    """
+    return {
+        "status": "healthy",
+        "service": "Multi-Agentic RAG Interview System",
+        "version": "1.0.0"
+    }
