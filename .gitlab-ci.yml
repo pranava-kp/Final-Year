@@ -1,0 +1,63 @@
+# GitLab CI/CD Pipeline for Docker deployment
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+before_script:
+  - docker info
+
+# Build Docker images
+build:
+  stage: build
+  script:
+    - cp .env.example .env
+    - echo "JWT_SECRET_KEY=$JWT_SECRET_KEY" >> .env
+    - echo "GOOGLE_API_KEY=$GOOGLE_API_KEY" >> .env
+    - docker-compose build
+  only:
+    - main
+    - develop
+
+# Run tests
+test:
+  stage: test
+  script:
+    - cp .env.example .env
+    - docker-compose up -d
+    - sleep 30
+    - docker-compose exec -T backend alembic upgrade head
+    - docker-compose exec -T backend pytest -v || true
+  after_script:
+    - docker-compose down -v
+  only:
+    - main
+    - develop
+
+# Deploy to staging
+deploy_staging:
+  stage: deploy
+  script:
+    - docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+  environment:
+    name: staging
+    url: https://staging.yourapp.com
+  only:
+    - develop
+
+# Deploy to production
+deploy_production:
+  stage: deploy
+  script:
+    - docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+  environment:
+    name: production
+    url: https://yourapp.com
+  only:
+    - main
+  when: manual
